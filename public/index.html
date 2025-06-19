@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ecommerce API - Node.js, Express, MongoDB</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome for icons -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"
+    />
+    <!-- Custom NestJS Colors -->
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              "nest-dark": "#22243a",
+              "nest-light": "#f7fafc",
+              "nest-primary": "#ea2845",
+              "nest-secondary": "#00e6c3",
+              "nest-accent": "#5a63e0",
+            },
+          },
+        },
+      };
+    </script>
+  </head>
+  <body class="bg-nest-light text-gray-800">
+    <!-- Header -->
+    <header class="bg-nest-dark text-white sticky top-0 z-50 shadow-lg">
+      <div
+        class="container mx-auto px-4 py-4 flex justify-between items-center"
+      >
+        <div class="flex items-center space-x-2">
+          <div
+            class="w-10 h-10 rounded-full bg-gradient-to-r from-nest-primary to-nest-secondary flex items-center justify-center"
+          >
+            <span class="text-xl font-bold">N</span>
+          </div>
+          <h1 class="text-2xl font-bold">Ecommerce API</h1>
+        </div>
+        <nav class="hidden md:block">
+          <ul class="flex space-x-8">
+            <li>
+              <a href="#inicio" class="hover:text-nest-secondary transition"
+                >Inicio</a
+              >
+            </li>
+            <li>
+              <a
+                href="#caracteristicas"
+                class="hover:text-nest-secondary transition"
+                >Características</a
+              >
+            </li>
+            <li>
+              <a href="#endpoints" class="hover:text-nest-secondary transition"
+                >Endpoints</a
+              >
+            </li>
+            <li>
+              <a href="#comenzar" class="hover:text-nest-secondary transition"
+                >¿Cómo empezar?</a
+              >
+            </li>
+          </ul>
+        </nav>
+        <button class="md:hidden text-2xl">
+          <i class="fas fa-bars"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section
+      id="inicio"
+      class="bg-gradient-to-br from-nest-dark to-gray-900 text-white py-20"
+    >
+      <div
+        class="container mx-auto px-4 flex flex-col md:flex-row items-center"
+      >
+        <div class="md:w-1/2 mb-10 md:mb-0">
+          <h2 class="text-4xl md:text-5xl font-bold mb-6">
+            API de ecommerce
+            <span class="text-nest-secondary">minimalista</span>,
+            <span class="text-nest-primary">rápida</span> y
+            <span class="text-nest-secondary">segura</span>
+          </h2>
+          <p class="text-xl mb-8 text-gray-300">
+            Plataforma backend moderna para tiendas online.<br />
+            Construida con Node.js, Express.js y MongoDB.<br />
+            Ofrece autenticación JWT, gestión eficiente de productos y pedidos, y endpoints seguros para tu negocio.
+          </p>
+          <div class="flex flex-wrap gap-4">
+            <a
+              href="https://documenter.getpostman.com/view/28918174/2sB2xBC9YQ"
+              target="_blank"
+              class="bg-nest-secondary hover:bg-teal-500 text-nest-dark font-bold py-3 px-6 rounded-full transition transform hover:-translate-y-1"
+            >
+              Ver Documentación
+            </a>
+            <a
+              href="mailto:adevprolatam@gmail.com"
+              class="border-2 border-nest-secondary hover:bg-nest-secondary text-white font-bold py-3 px-6 rounded-full transition"
+            >
+              Soporte
+            </a>
+          </div>
+        </div>
+        <div class="md:w-1/2 flex justify-center">
+          <div class="relative">
+            <div
+              class="absolute inset-0 bg-gradient-to-r from-nest-primary to-nest-secondary rounded-full opacity-20 blur-2xl"
+            ></div>
+            <div
+              class="relative bg-nest-dark rounded-2xl p-6 border border-gray-700 shadow-2xl"
+            >
+              <div class="bg-gray-800 rounded-lg overflow-hidden">
+                <div class="flex space-x-2 p-3 bg-gray-900">
+                  <div class="w-3 h-3 bg-red-500 rounded-full"></div>
+                  <div class="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                  <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+                </div>
+                <div class="p-4 font-mono text-sm">
+                    <p class="text-nest-primary">// Autenticación JWT</p>
+                    <p class="mt-2 text-nest-secondary">POST /api/login</p>
+                    <p class="text-white">
+                       API
+                        <br>
+                        <span class="text-nest-accent">https://backend-ecommerce-aasn.onrender.com/api/{endpoints}</span>
+                    </p>
+                </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Características -->
+    <section id="caracteristicas" class="py-20">
+      <div class="container mx-auto px-4">
+        <div class="text-center mb-16">
+          <h2 class="text-3xl md:text-4xl font-bold mb-4 text-nest-dark">
+            ¿Qué puedes hacer?
+          </h2>
+          <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+            Funcionalidades principales de la API
+          </p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+          <div
+            class="bg-white rounded-2xl p-8 shadow-lg border border-gray-100 hover:shadow-xl transition"
+          >
+            <div
+              class="w-16 h-16 rounded-full bg-nest-primary bg-opacity-10 flex items-center justify-center mb-6"
+            >
+              <i class="fas fa-user-shield text-3xl text-nest-primary"></i>
+            </div>
+            <h3 class="text-xl font-bold mb-3 text-nest-dark">
+              Autenticación JWT
+            </h3>
+            <p class="text-gray-600">
+              Regístrate o inicia sesión y obtén un token seguro para tus
+              peticiones.
+            </p>
+          </div>
+          <div
+            class="bg-white rounded-2xl p-8 shadow-lg border border-gray-100 hover:shadow-xl transition"
+          >
+            <div
+              class="w-16 h-16 rounded-full bg-nest-secondary bg-opacity-10 flex items-center justify-center mb-6"
+            >
+              <i class="fas fa-boxes text-3xl text-nest-secondary"></i>
+            </div>
+            <h3 class="text-xl font-bold mb-3 text-nest-dark">
+              Gestión de productos
+            </h3>
+            <p class="text-gray-600">
+              Crea, edita y consulta productos fácilmente desde la API.
+            </p>
+          </div>
+          <div
+            class="bg-white rounded-2xl p-8 shadow-lg border border-gray-100 hover:shadow-xl transition"
+          >
+            <div
+              class="w-16 h-16 rounded-full bg-nest-accent bg-opacity-10 flex items-center justify-center mb-6"
+            >
+              <i class="fas fa-shopping-cart text-3xl text-nest-accent"></i>
+            </div>
+            <h3 class="text-xl font-bold mb-3 text-nest-dark">
+              Gestión de pedidos
+            </h3>
+            <p class="text-gray-600">
+              Crea y consulta pedidos de manera segura y eficiente.
+            </p>
+          </div>
+          <div
+            class="bg-white rounded-2xl p-8 shadow-lg border border-gray-100 hover:shadow-xl transition"
+          >
+            <div
+              class="w-16 h-16 rounded-full bg-nest-primary bg-opacity-10 flex items-center justify-center mb-6"
+            >
+              <i class="fas fa-users text-3xl text-nest-primary"></i>
+            </div>
+            <h3 class="text-xl font-bold mb-3 text-nest-dark">
+              Consulta de usuarios
+            </h3>
+            <p class="text-gray-600">
+              Accede a la información de los usuarios registrados.
+            </p>
+          </div>
+          <div
+            class="bg-white rounded-2xl p-8 shadow-lg border border-gray-100 hover:shadow-xl transition"
+          >
+            <div
+              class="w-16 h-16 rounded-full bg-nest-secondary bg-opacity-10 flex items-center justify-center mb-6"
+            >
+              <i class="fas fa-lock text-3xl text-nest-secondary"></i>
+            </div>
+            <h3 class="text-xl font-bold mb-3 text-nest-dark">Seguridad</h3>
+            <p class="text-gray-600">
+              Protección de endpoints y datos sensibles con buenas prácticas.
+            </p>
+          </div>
+          <div
+            class="bg-white rounded-2xl p-8 shadow-lg border border-gray-100 hover:shadow-xl transition"
+          >
+            <div
+              class="w-16 h-16 rounded-full bg-nest-accent bg-opacity-10 flex items-center justify-center mb-6"
+            >
+              <i class="fas fa-rocket text-3xl text-nest-accent"></i>
+            </div>
+            <h3 class="text-xl font-bold mb-3 text-nest-dark">
+              Rápida y escalable
+            </h3>
+            <p class="text-gray-600">
+              Pensada para crecer y responder rápidamente a las necesidades del
+              negocio.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Endpoints principales -->
+    <section
+      id="endpoints"
+      class="py-20 bg-gradient-to-b from-white to-nest-light"
+    >
+      <div class="container mx-auto px-4">
+        <div class="text-center mb-12">
+          <h2 class="text-3xl md:text-4xl font-bold mb-4 text-nest-dark">
+            Endpoints principales
+          </h2>
+          <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+            Accede a los recursos clave de la API
+          </p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+          <div
+            class="flex items-center gap-4 bg-white rounded-lg shadow p-4 border border-gray-100"
+          >
+            <span
+              class="bg-nest-primary text-white px-3 py-1 rounded font-mono text-xs"
+              >POST /api/login</span
+            >
+            <span class="text-gray-700">Iniciar sesión</span>
+          </div>
+          <div
+            class="flex items-center gap-4 bg-white rounded-lg shadow p-4 border border-gray-100"
+          >
+            <span
+              class="bg-nest-secondary text-white px-3 py-1 rounded font-mono text-xs"
+              >POST /api/register</span
+            >
+            <span class="text-gray-700">Registro de usuario</span>
+          </div>
+          <div
+            class="flex items-center gap-4 bg-white rounded-lg shadow p-4 border border-gray-100"
+          >
+            <span
+              class="bg-nest-accent text-white px-3 py-1 rounded font-mono text-xs"
+              >GET /api/products</span
+            >
+            <span class="text-gray-700">Listar productos</span>
+          </div>
+          <div
+            class="flex items-center gap-4 bg-white rounded-lg shadow p-4 border border-gray-100"
+          >
+            <span
+              class="bg-nest-primary text-white px-3 py-1 rounded font-mono text-xs"
+              >POST /api/orders</span
+            >
+            <span class="text-gray-700">Crear pedido</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section
+      id="arquitectura"
+      class="py-20 bg-gradient-to-b from-white to-nest-light"
+    >
+      <div class="container mx-auto px-4">
+        <div class="text-center mb-16">
+          <h2 class="text-3xl md:text-4xl font-bold mb-4 text-nest-dark">
+            Tecnologías y Arquitectura
+          </h2>
+          <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+            Esta aplicación está construida con una arquitectura modular y
+            utiliza tecnologías modernas para ofrecer un servicio robusto y
+            seguro.
+          </p>
+        </div>
+        <div class="flex flex-col md:flex-row items-center mb-12">
+          <div class="md:w-1/2 mb-10 md:mb-0">
+            <div class="bg-white p-6 rounded-2xl shadow-lg">
+              <div class="flex flex-col space-y-6">
+                <div class="flex items-start space-x-4">
+                  <span class="flex items-center justify-center w-10 h-10">
+                    <i class="fab fa-node-js text-3xl text-green-600"></i>
+                  </span>
+                  <span>
+                    <span class="font-bold text-lg text-nest-dark block"
+                      >Express.js</span
+                    >
+                    <span class="text-gray-600 block"
+                      >Framework rápido y minimalista para Node.js.</span
+                    >
+                  </span>
+                </div>
+                <div class="flex items-start space-x-4">
+                  <span class="flex items-center justify-center w-10 h-10">
+                    <i class="fas fa-envelope text-3xl text-yellow-500"></i>
+                  </span>
+                  <span>
+                    <span class="font-bold text-lg text-nest-dark block"
+                      >Nodemailer</span
+                    >
+                    <span class="text-gray-600 block"
+                      >Envío de emails para notificaciones y
+                      confirmaciones.</span
+                    >
+                  </span>
+                </div>
+                <div class="flex items-start space-x-4">
+                  <span class="flex items-center justify-center w-10 h-10">
+                    <i class="fas fa-leaf text-3xl text-green-700"></i>
+                  </span>
+                  <span>
+                    <span class="font-bold text-lg text-nest-dark block"
+                      >MongoDB</span
+                    >
+                    <span class="text-gray-600 block"
+                      >Base de datos NoSQL para almacenamiento flexible.</span
+                    >
+                  </span>
+                </div>
+                <div class="flex items-start space-x-4">
+                  <span class="flex items-center justify-center w-10 h-10">
+                    <i class="fas fa-database text-3xl text-blue-700"></i>
+                  </span>
+                  <span>
+                    <span class="font-bold text-lg text-nest-dark block"
+                      >PostgreSQL</span
+                    >
+                    <span class="text-gray-600 block"
+                      >Base de datos relacional robusta y escalable.</span
+                    >
+                  </span>
+                </div>
+                <div class="flex items-start space-x-4">
+                  <span class="flex items-center justify-center w-10 h-10">
+                    <i class="fas fa-key text-3xl text-nest-primary"></i>
+                  </span>
+                  <span>
+                    <span class="font-bold text-lg text-nest-dark block"
+                      >JWT</span
+                    >
+                    <span class="text-gray-600 block"
+                      >Autenticación segura basada en tokens.</span
+                    >
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="md:w-1/2 flex justify-center">
+            <div class="relative">
+              <div
+                class="absolute inset-0 bg-gradient-to-r from-nest-primary to-nest-secondary rounded-full opacity-20 blur-3xl -z-10"
+              ></div>
+              <div
+                class="bg-nest-dark p-8 rounded-2xl border border-gray-700 text-white"
+              >
+                <div class="text-center mb-6">
+                  <h3 class="text-xl font-bold text-nest-secondary">
+                    Flujo de solicitud HTTP
+                  </h3>
+                </div>
+                <div class="space-y-4">
+                  <div class="flex items-center">
+                    <div
+                      class="w-8 h-8 rounded-full bg-nest-primary flex items-center justify-center text-xs font-bold"
+                    >
+                      1
+                    </div>
+                    <div class="ml-4 bg-gray-800 px-4 py-2 rounded-lg flex-1">
+                      Middleware
+                    </div>
+                  </div>
+                  <div class="flex items-center">
+                    <div
+                      class="w-8 h-8 rounded-full bg-nest-primary flex items-center justify-center text-xs font-bold"
+                    >
+                      2
+                    </div>
+                    <div class="ml-4 bg-gray-800 px-4 py-2 rounded-lg flex-1">
+                      Autenticación JWT
+                    </div>
+                  </div>
+                  <div class="flex items-center">
+                    <div
+                      class="w-8 h-8 rounded-full bg-nest-secondary flex items-center justify-center text-xs font-bold"
+                    >
+                      3
+                    </div>
+                    <div class="ml-4 bg-gray-800 px-4 py-2 rounded-lg flex-1">
+                      Controladores Express
+                    </div>
+                  </div>
+                  <div class="flex items-center">
+                    <div
+                      class="w-8 h-8 rounded-full bg-nest-accent flex items-center justify-center text-xs font-bold"
+                    >
+                      4
+                    </div>
+                    <div class="ml-4 bg-gray-800 px-4 py-2 rounded-lg flex-1">
+                      Servicios (MongoDB / PostgreSQL)
+                    </div>
+                  </div>
+                  <div class="flex items-center">
+                    <div
+                      class="w-8 h-8 rounded-full bg-yellow-500 flex items-center justify-center text-xs font-bold"
+                    >
+                      5
+                    </div>
+                    <div class="ml-4 bg-gray-800 px-4 py-2 rounded-lg flex-1">
+                      Notificaciones (Nodemailer)
+                    </div>
+                  </div>
+                  <div class="flex items-center">
+                    <div
+                      class="w-8 h-8 rounded-full bg-pink-500 flex items-center justify-center text-xs font-bold"
+                    >
+                      6
+                    </div>
+                    <div class="ml-4 bg-gray-800 px-4 py-2 rounded-lg flex-1">
+                      Manejo de errores
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="text-center mt-8">
+          <span class="inline-flex items-center space-x-6">
+            <span class="flex items-center justify-center w-12 h-12">
+              <i
+                class="fab fa-node-js text-4xl text-green-600"
+                title="Node.js"
+              ></i>
+            </span>
+            <span class="flex items-center justify-center w-12 h-12">
+              <i
+                class="fas fa-envelope text-4xl text-yellow-500"
+                title="Nodemailer"
+              ></i>
+            </span>
+            <span class="flex items-center justify-center w-12 h-12">
+              <i
+                class="fas fa-leaf text-4xl text-green-700"
+                title="MongoDB"
+              ></i>
+            </span>
+            <span class="flex items-center justify-center w-12 h-12">
+              <i
+                class="fas fa-database text-4xl text-blue-700"
+                title="PostgreSQL"
+              ></i>
+            </span>
+            <span class="flex items-center justify-center w-12 h-12">
+              <i class="fas fa-key text-4xl text-nest-primary" title="JWT"></i>
+            </span>
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ¿Cómo empezar? -->
+    <section id="comenzar" class="py-20">
+      <div class="container mx-auto px-4">
+        <div class="text-center mb-12">
+          <h2 class="text-3xl md:text-4xl font-bold mb-4 text-nest-dark">
+            ¿Cómo empezar?
+          </h2>
+          <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+            Sigue estos pasos para usar la API
+          </p>
+        </div>
+        <ol
+          class="list-decimal list-inside text-gray-700 text-lg max-w-2xl mx-auto space-y-3"
+        >
+          <li>Regístrate o inicia sesión para obtener tu token JWT.</li>
+          <li>
+            Incluye el token en
+            <span class="bg-gray-100 px-1 rounded font-mono text-xs"
+              >Authorization: Bearer &lt;token&gt;</span
+            >
+            en las peticiones protegidas.
+          </li>
+          <li>
+            Consulta la
+            <a
+              href="https://documenter.getpostman.com/view/28918174/2sB2xBC9YQ"
+              target="_blank"
+              class="text-nest-secondary underline"
+              >documentación</a
+            >
+            para más detalles.
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-nest-dark text-white py-12">
+      <div class="container mx-auto px-4">
+        <div class="flex flex-col md:flex-row justify-between">
+          <div class="mb-8 md:mb-0">
+            <div class="flex items-center space-x-2 mb-4">
+              <div
+                class="w-10 h-10 rounded-full bg-gradient-to-r from-nest-primary to-nest-secondary flex items-center justify-center"
+              >
+                <span class="text-xl font-bold">N</span>
+              </div>
+              <h2 class="text-2xl font-bold">Ecommerce API</h2>
+            </div>
+            <p class="text-gray-400 max-w-xs">
+              API minimalista y segura para ecommerce.<br />
+              Node.js · Express.js · MongoDB
+            </p>
+          </div>
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-8">
+            <div>
+              <h3 class="text-lg font-bold mb-4">Recursos</h3>
+              <ul class="space-y-2">
+                <li>
+                  <a
+                    href="https://documenter.getpostman.com/view/28918174/2sB2xBC9YQ"
+                    class="text-gray-400 hover:text-nest-secondary transition"
+                    >Documentación</a
+                  >
+                </li>
+                <li>
+                  <a
+                    href="#"
+                    class="text-gray-400 hover:text-nest-secondary transition"
+                    >Guías</a
+                  >
+                </li>
+                <li>
+                  <a
+                    href="#"
+                    class="text-gray-400 hover:text-nest-secondary transition"
+                    >Ejemplos</a
+                  >
+                </li>
+                <li>
+                  <a
+                    href="#"
+                    class="text-gray-400 hover:text-nest-secondary transition"
+                    >Cursos</a
+                  >
+                </li>
+              </ul>
+            </div>
+            <div>
+              <h3 class="text-lg font-bold mb-4">Comunidad</h3>
+              <ul class="space-y-2">
+                <li>
+                  <a
+                    href="#"
+                    class="text-gray-400 hover:text-nest-secondary transition"
+                    >GitHub</a
+                  >
+                </li>
+                <li>
+                  <a
+                    href="#"
+                    class="text-gray-400 hover:text-nest-secondary transition"
+                    >Discord</a
+                  >
+                </li>
+                <li>
+                  <a
+                    href="#"
+                    class="text-gray-400 hover:text-nest-secondary transition"
+                    >Stack Overflow</a
+                  >
+                </li>
+                <li>
+                  <a
+                    href="#"
+                    class="text-gray-400 hover:text-nest-secondary transition"
+                    >Twitter</a
+                  >
+                </li>
+              </ul>
+            </div>
+            <div>
+              <h3 class="text-lg font-bold mb-4">Empresa</h3>
+              <ul class="space-y-2">
+                <li>
+                  <a
+                    href="#"
+                    class="text-gray-400 hover:text-nest-secondary transition"
+                    >Blog</a
+                  >
+                </li>
+                <li>
+                  <a
+                    href="#"
+                    class="text-gray-400 hover:text-nest-secondary transition"
+                    >Contribuir</a
+                  >
+                </li>
+                <li>
+                  <a
+                    href="mailto:adevprolatam@gmail.com"
+                    class="text-gray-400 hover:text-nest-secondary transition"
+                    >Soporte</a
+                  >
+                </li>
+                <li>
+                  <a
+                    href="#"
+                    class="text-gray-400 hover:text-nest-secondary transition"
+                    >Términos</a
+                  >
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div class="text-center text-gray-400 text-xs mt-8">
+          &copy; 2025 Adevprolatam. Node.js · Express.js · MongoDB
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
