@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-const uuid = require('uuid');
 
 const ItemSchema = new mongoose.Schema(
     {
@@ -33,12 +32,35 @@ const ItemSchema = new mongoose.Schema(
             default:true
         },
         createdBy:{
-            type: mongoose.Types.ObjectId,
+            type: mongoose.Schema.Types.ObjectId,
             ref: 'users',
             required: true
         },
-        category:{
-            type:String,
+        category: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'categories',
+            required: true
+        },
+        subcategory: {
+            type: mongoose.Schema.Types.ObjectId,
+            required: true
+        },
+        //brand: {
+        //    type: mongoose.Schema.Types.ObjectId,
+        //    ref: 'brands',
+        //    required: true
+        //},
+        //tags: [
+        //    {
+        //        type: mongoose.Schema.Types.ObjectId,
+        //        ref: 'tags',
+        //    }
+        //],
+        rating: {
+            type: Number,
+            default: 0,
+            min: 0,
+            max: 5
         },
         stock:{
             type:Number,

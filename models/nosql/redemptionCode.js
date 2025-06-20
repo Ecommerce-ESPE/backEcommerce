@@ -14,7 +14,7 @@ const redemptionCodeSchema  = new mongoose.Schema(
             default: false
         },
         createdBy:{
-            type: mongoose.Types.ObjectId,
+            type: mongoose.Schema.Types.ObjectId,
             ref: 'users',
             required: true
         },
