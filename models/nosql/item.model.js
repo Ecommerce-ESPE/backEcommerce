@@ -21,7 +21,8 @@ const ItemSchema = new mongoose.Schema(
                 _id:false,
                 title: String,
                 description:"String",
-                imgUrl:"String"
+                imgUrl:"String",
+                public_id: String
              }
         ],
         banner:{
