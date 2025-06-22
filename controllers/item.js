@@ -1,4 +1,5 @@
 const {itemModel} = require('../models/index');
+const mongoose = require('mongoose');
 
 // @GET ALL ITEMS
 const getItemsAll = async (req,res)=>{
@@ -55,19 +56,22 @@ const getFilteredItems = async (req, res) => {
     const {
       category,
       subcategory,
-      sort = "createdAt_desc", // por defecto: más recientes
+      sort = "createdAt_desc",
       page = 1,
       limit = 12,
     } = req.query;
 
-    const query = {
-      visibility: true,
-    };
+    const query = { visibility: true };
 
-    if (category) query.category = category;
-    if (subcategory) query.subcategory = subcategory;
+    // 1. Validar si los valores son ObjectIds antes de agregarlos al query
+    if (category && category !== "ninguna" && mongoose.Types.ObjectId.isValid(category)) {
+      query.category = category;
+    }
+    if (subcategory && subcategory !== "ninguna" && mongoose.Types.ObjectId.isValid(subcategory)) {
+      query.subcategory = subcategory;
+    }
 
-    // Ordenamiento dinámico
+    // Ordenamiento
     const sortOptions = {
       price_asc: { "value.price": 1 },
       price_desc: { "value.price": -1 },
@@ -76,13 +80,12 @@ const getFilteredItems = async (req, res) => {
       name_desc: { nameProduct: -1 },
       createdAt_desc: { createdAt: -1 },
     };
-
     const sortQuery = sortOptions[sort] || { createdAt: -1 };
 
     // Paginación
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // Buscar los items
+    // 2. Filtrar documentos con categorías/subcategorías inválidas
     const [items, total] = await Promise.all([
       itemModel
         .find(query)
@@ -94,20 +97,26 @@ const getFilteredItems = async (req, res) => {
       itemModel.countDocuments(query),
     ]);
 
+    // 3. Limpieza manual de referencias rotas (opcional)
+    const safeItems = items.map(item => ({
+      ...item,
+      category: item.category?._id ? item.category : null,
+      subcategory: item.subcategory?._id ? item.subcategory : null,
+    }));
+
     res.json({
       code: "200",
       ok: true,
       total,
       page: parseInt(page),
       totalPages: Math.ceil(total / limit),
-      items,
+      items: safeItems,
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ code: "500", ok: false, error: error.message });
+    res.status(500).json({ code: "500", ok: false, error: "Error al obtener productos" });
   }
 };
-
 const createItem = async (req,res)=>{
     const {body} = req;
     const data = await itemModel.create(body);
