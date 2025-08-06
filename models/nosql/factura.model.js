@@ -45,6 +45,11 @@ const FacturaSchema = new mongoose.Schema(
       method: ShippingMethodSchema,
       address: ShippingAddressSchema
     },
+    status: {
+      type: String,
+      enum: ["paid", "unpaid", "pending", "canceled", "refunded"],
+      default: "unpaid"
+    },
     companyDetails: {
       name: { type: String, default: "Createx Shop" },
       address: { type: String, default: "Av. Moran Valverde, S142-54" },

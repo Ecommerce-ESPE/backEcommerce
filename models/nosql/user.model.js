@@ -1,52 +1,105 @@
 const mongoose = require("mongoose");
 
-const UserSchema = new mongoose.Schema(
-    {
-        name:{
-            type:String,
-        },
-        email:{
-            type:String,
-            unique: true,
-            require: true
-        },
-        password:{
-            type:String,
-            require: true
-        },
-        role:{
-            type:["USER", "ADMIN", "DEV"],
-            default: "USER"
-        },
-        address:{
-            type:Object,
-        },
-        phone:{
-            type: String
-        },
-        profileUrl:{
-            type: String
-        },
-        transactions:{
-            type: String
+const UserAddressSchema = new mongoose.Schema({
+  provincia: {
+    type: String,
+    required: false
+  },
+  canton: {
+    type: String,
+    required: false
+  },
+  parroquia: {
+    type: String,
+    required: false
+  },
+  directionPrincipal: {
+    type: String,
+    default: ""
+  },
+  nCasa: {
+    type: String,
+    default: ""
+  },
+  codepostal: {
+    type: String,
+    default: ""
+  },
+  telefono: {
+    type: String,
+    default: ""
+  }
+}, { _id: false });
 
-            //type: mongoose.Types.ObjectId,
-            //ref: 'transactions',
-            //required: false
-        }, 
-        config:{
-            type: String
-        },
-        credits:{
-            type: Number,
-            default:0 
-        }
+const UserSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true
     },
-    {
-        timestamps: true,
-        versionKey: false,
-    }
-)
+    email: {
+      type: String,
+      unique: true,
+      required: true
+    },
+    password: {
+      type: String,
+      required: true
+    },
+    ci:{
+        type: String,
+        unique: true,
+        required: false
+    },
+    role: {
+      type: String,
+      enum: ["USER", "ADMIN", "DEV"],
+      default: "USER",
+      immutable: true 
+    },
+    address: [
+      {
+      type: UserAddressSchema,
+      default: () => ({})
+      }
+    ],
+    phone: {
+      type: String,
+      default: "",
+      required: false
+    },
+    profileUrl: {
+      type: String,
+      default: "https://ejemplo.com/default-avatar.jpg",
+      required: false
+    },
+    transactions: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'factura',
+      required: false  
+    }],
+    config: {
+      type: String,
+      default: "",
+      required: false
+    },
+    credits: {
+      type: Number,
+      default: 0,
+      required: false
+    },
+    public_id: {
+      type: String,
+      default: "",
+      required: false
+    },
+  },
+  {
+    timestamps: true,
+    versionKey: false,
+  }
+);
+
 UserSchema.method("toJSON", function () {
   const { _id, password, ...object } = this.toObject();
   object.uid = _id;

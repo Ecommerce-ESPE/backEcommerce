@@ -18,16 +18,16 @@ const uploadToCloudinary = (fileBuffer, folder = 'general', filename = '') => {
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
       {
-        folder,
-        public_id: filename || undefined,
-        resource_type: 'image',
-        transformation: [
-          { width: 800, height: 800, crop: 'limit' }
-        ]
+      folder,
+      public_id: filename || undefined,
+      resource_type: 'image',
+      transformation: [
+        { width: 1600, height: 900, crop: 'limit', quality: "auto:best", fetch_format: "auto" }
+      ]
       },
       (error, result) => {
-        if (error) return reject(error);
-        resolve(result);
+      if (error) return reject(error);
+      resolve(result);
       }
     );
 

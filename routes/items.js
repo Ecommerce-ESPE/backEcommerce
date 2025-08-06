@@ -1,11 +1,16 @@
 const { Router } = require("express");
 const router = Router();
-
+const { validarJWT, validarAdmin } = require('../middlewares/validar-jwt');
+const { validarCampos } = require('../middlewares/validar-campos');
 const {
   getItemsAll,
   createItem,
   getItemsById,
   getFilteredItems,
+  updateItemPromotion,
+  updateItem,
+  deleteItem,
+  getFilteredItemsAdmin
 } = require("../controllers/item");
 const {
   uploadMultipleImages,
@@ -16,11 +21,16 @@ const upload = require("../middlewares/upload");
 
 // SEARCH
 router.get('/filter', getFilteredItems);
+router.get('/admin/filter', getFilteredItemsAdmin);
 
 //Todo: Route ITEMS
 router.get("/", getItemsAll);
 router.get("/:id", getItemsById);
-router.post("/", createItem);
+router.post("/",[validarJWT,validarAdmin],createItem);
+router.post("/:id",updateItem)
+router.delete("/:id",[validarJWT,validarAdmin], deleteItem);
+// ACTUALIZAR PROMOCIÓN
+router.patch("/:id/promotion", updateItemPromotion);
 
 
 /// UPLOAD
@@ -33,6 +43,9 @@ router.put(
   ]),
   uploadMultipleImages
 );
-router.delete("/image", deleteImageFromItem);
+
+router.post("/image/delete", deleteImageFromItem);
+
+// eliminar producto {
 
 module.exports = router;

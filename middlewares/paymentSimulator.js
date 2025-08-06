@@ -1,3 +1,14 @@
+
+const {
+  orderModel,
+  transactionModel,
+  invoiceModel,
+  itemModel,
+  discountModel,
+  userModel,
+  shippingMethodModel,
+} = require("../models/index");
+
 class PaymentSimulator {
   static testCards = {
     // Tarjetas válidas
@@ -8,6 +19,11 @@ class PaymentSimulator {
     },
     'MASTERCARD_SUCCESS': {
       number: '5555555555554444',
+      message: 'Pago exitoso',
+      success: true
+    },
+    'AMEX_SUCCESS': {
+      number: '378282246310005',
       message: 'Pago exitoso',
       success: true
     },
@@ -65,46 +81,164 @@ class PaymentSimulator {
     }
   };
 
-  static async processPayment(paymentData) {
-    // Simular tiempo de procesamiento
-    await new Promise(resolve => setTimeout(resolve, 1500));
+  static async processCreditCard(details, amount) {
+    try {
+      this.validateCardDetails(details);
+      this.validateAmount(amount);
+      
+      const paymentData = {
+        cardNumber: details.cardNumber.replace(/\s+/g, ''),
+        expiry: details.expiry,
+        cvc: details.cvc,
+        amount: parseFloat(amount)
+      };
+
+      // Simular tiempo de procesamiento
+      await this.simulateProcessingDelay();
+      
+      const result = this.processCardPayment(paymentData);
+      
+      return {
+        success: result.success,
+        status: result.success ? 'completed' : 'failed',
+        transactionId: result.transactionId || `tx_${Date.now()}`,
+        authorizationCode: result.success ? `AUTH${Math.floor(Math.random() * 10000)}` : undefined,
+        message: result.message,
+        ...(!result.success && { 
+          error: result.message,
+          errorCode: result.errorCode,
+          declineCode: this.getDeclineCode(result.errorCode)
+        })
+      };
+    } catch (error) {
+      console.error('Error en processCreditCard:', error.message);
+      return {
+        success: false,
+        status: 'failed',
+        message: error.message,
+        errorCode: 'PROCESSING_ERROR',
+        declineCode: 'processing_error'
+      };
+    }
+  }
+
+   static async processCredits(userId, amount, session) { // Añadir session como parámetro
+    try {
+      this.validateUserId(userId);
+      this.validateAmount(amount);
+      
+      // Verificar usuario y créditos REALES
+      const user = await userModel.findById(userId).session(session);
+      if (!user) {
+        throw new Error("Usuario no encontrado");
+      }
+      
+      if (user.credits < amount) {
+        throw new Error(`Créditos insuficientes. Disponibles: ${user.credits}, Requeridos: ${amount}`);
+      }
+      
+      // Simular tiempo de procesamiento
+      await this.simulateProcessingDelay(800);
+      
+      return {
+        success: true,
+        status: 'completed',
+        transactionId: `cred_${Date.now()}`,
+        message: 'Créditos aplicados exitosamente',
+        userId: userId,
+        amountDeducted: parseFloat(amount)
+      };
+    } catch (error) {
+      console.error('Error en processCredits:', error.message);
+      return {
+        success: false,
+        status: 'failed',
+        message: error.message,
+        errorCode: 'INSUFFICIENT_CREDITS'
+      };
+    }
+  }
+
+  static async processPayPal(amount) {
+    try {
+      this.validateAmount(amount);
+      
+      // Simular tiempo de procesamiento
+      await this.simulateProcessingDelay(1500);
+      
+      return {
+        success: true,
+        status: 'completed',
+        transactionId: `paypal_${Date.now()}`,
+        message: 'Pago con PayPal completado',
+        amount: parseFloat(amount)
+      };
+    } catch (error) {
+      console.error('Error en processPayPal:', error.message);
+      return {
+        success: false,
+        status: 'failed',
+        message: error.message,
+        errorCode: 'PAYPAL_ERROR'
+      };
+    }
+  }
+
+  static validateCardDetails(details) {
+    if (!details) throw new Error('Detalles de pago no proporcionados');
+    if (!details.cardNumber) throw new Error('Número de tarjeta requerido');
+    if (!details.expiry) throw new Error('Fecha de expiración requerida');
+    if (!details.cvc) throw new Error('Código CVC requerido');
     
-    // Buscar si es una tarjeta de prueba conocida
-    const cardNumber = paymentData.cardNumber.replace(/\s+/g, '');
+    // Validación básica de formato
+    const cardNumber = details.cardNumber.replace(/\s+/g, '');
+    if (!/^\d{13,16}$/.test(cardNumber)) {
+      throw new Error('Número de tarjeta inválido');
+    }
+    if (!/^\d{2}\/\d{2}$/.test(details.expiry)) {
+      throw new Error('Fecha de expiración inválida (use MM/YY)');
+    }
+    if (!/^\d{3,4}$/.test(details.cvc)) {
+      throw new Error('Código CVC inválido');
+    }
+  }
+
+  static validateAmount(amount) {
+    const amountNum = parseFloat(amount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      throw new Error('Monto inválido');
+    }
+  }
+
+  static validateUserId(userId) {
+    if (!userId || typeof userId !== 'string') {
+      throw new Error('ID de usuario inválido');
+    }
+  }
+
+  static processCardPayment(paymentData) {
     const testCard = Object.values(this.testCards).find(
-      card => card.number === cardNumber
+      card => card.number === paymentData.cardNumber
     );
     
     if (testCard) {
-      return testCard.success 
-        ? this.successResponse()
-        : this.errorResponse(testCard.errorCode, testCard.message);
+      return testCard;
     }
     
-    // Lógica para otras tarjetas
-    return cardNumber.startsWith('42') || cardNumber.startsWith('55')
-      ? this.successResponse()
-      : this.errorResponse('GENERIC_DECLINE', 'Transacción rechazada');
-  }
-
-  static successResponse() {
+    // Lógica para tarjetas no registradas
+    const isSuccess = paymentData.cardNumber.startsWith('4') || 
+                     paymentData.cardNumber.startsWith('5');
+    
     return {
-      success: true,
-      transactionId: `trx_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
-      timestamp: new Date(),
-      authorizationCode: `AUTH${Math.floor(Math.random() * 10000)}`,
-      processorResponse: '00 - Approved'
+      success: isSuccess,
+      message: isSuccess ? 'Pago exitoso' : 'Transacción rechazada',
+      errorCode: isSuccess ? undefined : 'GENERIC_DECLINE'
     };
   }
 
-  static errorResponse(code, message) {
-    return {
-      success: false,
-      errorCode: code,
-      message,
-      declineCode: this.getDeclineCode(code),
-      timestamp: new Date()
-    };
+  static async simulateProcessingDelay(baseDelay = 1000) {
+    const delay = baseDelay + Math.random() * 500; // Variabilidad
+    await new Promise(resolve => setTimeout(resolve, delay));
   }
 
   static getDeclineCode(errorCode) {
@@ -116,7 +250,9 @@ class PaymentSimulator {
       'GENERIC_DECLINE': 'generic_decline',
       'PROCESSING_ERROR': 'processing_error',
       'CHARGEBACK': 'chargeback',
-      'FRAUDULENT': 'fraudulent'
+      'FRAUDULENT': 'fraudulent',
+      'CREDIT_PROCESSING_ERROR': 'credit_error',
+      'PAYPAL_ERROR': 'paypal_error'
     };
     return codes[errorCode] || 'generic_decline';
   }

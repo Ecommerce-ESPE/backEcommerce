@@ -1,11 +1,22 @@
 const { uploadToCloudinary } = require('../helpers/cloudinaryUpload');
-const {itemModel} = require('../models/index');
+const {itemModel, bannerHeroModel, userModel} = require('../models/index');
+const cloudinary = require('cloudinary').v2;
 
 const uploadMultipleImages = async (req, res) => {
   try {
     const itemId = req.params.id;
     const files = req.files;
 
+    // validar id
+    if (!itemId) {
+      return res.status(400).json({ error: 'Falta el ID del item' });
+    }
+     if (!itemId || itemId === "undefined") {
+      console.error(itemId);
+      console.error("ID de producto inválido");
+      return;
+    }
+    
     if (!files || (!files.images && !files.banner)) {
       return res.status(400).json({ error: 'No se enviaron imágenes ni banner' });
     }
@@ -106,37 +117,109 @@ const replaceItemImage = async (req, res) => {
     res.status(500).json({ error: 'Error al reemplazar la imagen' });
   }
 };
+
 const deleteImageFromItem = async (req, res) => {
   const { itemId, imgUrl } = req.body;
+
+  console.log("REQ BODY:", req.body);
+  console.log("itemId:", itemId, "typeof:", typeof itemId);
+  console.log("imgUrl:", imgUrl);
+
+  const mongoose = require("mongoose");
+
+  if (!itemId || itemId === "undefined" || !mongoose.Types.ObjectId.isValid(itemId)) {
+    return res.status(400).json({ code: "400", ok: false, message: "ID de producto inválido" });
+  }
 
   try {
     const item = await itemModel.findById(itemId);
     if (!item) return res.status(404).json({ error: 'Producto no encontrado' });
 
-    const image = item.images.find(img => img.imgUrl === imgUrl);
+    const image = item.images.find(img => img.imgUrl.trim() === imgUrl.trim());
     if (!image) return res.status(404).json({ error: 'Imagen no encontrada' });
 
-    // 1. Eliminar imagen de Cloudinary si tiene public_id
+    // 1. Eliminar de Cloudinary
     if (image.public_id) {
-      await cloudinary.uploader.destroy(image.public_id);
+      const result = await cloudinary.uploader.destroy(image.public_id.trim());
+      console.log("Cloudinary result:", result);
     }
 
-    // 2. Eliminar imagen del array en Mongo
-    await itemModel.findByIdAndUpdate(
+    // 2. Eliminar del array
+    const updatedItem = await itemModel.findByIdAndUpdate(
       itemId,
-      { $pull: { images: { imgUrl: imgUrl } } },
+      { $pull: { images: { imgUrl: imgUrl.trim() } } },
       { new: true }
     );
 
-    res.json({ message: 'Imagen eliminada correctamente' });
+    return res.json({ message: "Imagen eliminada correctamente", item: updatedItem });
+  } catch (error) {
+    console.error("ERROR en deleteImageFromItem:", error);
+    return res.status(500).json({ error: 'Error al eliminar imagen' });
+  }
+};
+
+
+// UPLOAD IMAGE BANNER-HERO
+const uploadBannerHeroImage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const file = req.file;
+
+    if (!file) {
+      return res.status(400).json({ error: 'No se envió una imagen' });
+    }
+
+    const result = await uploadToCloudinary(file.buffer, 'banners/hero');
+
+    const updatedBanner = await bannerHeroModel.findByIdAndUpdate(
+      id,
+      { image: result.secure_url, public_id: result.public_id },
+      { new: true }
+    );
+
+    res.json({
+      message: 'Banner Hero actualizado correctamente',
+      banner: updatedBanner
+    });
 
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Error al eliminar imagen' });
+    res.status(500).json({ error: 'Error al subir imagen del Banner Hero' });
+  }
+};
+
+// UPLOAD IMAGE PERFIL
+const uploadProfileImage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const file = req.file;
+
+    if (!file) {
+      return res.status(400).json({ error: 'No se envió una imagen' });
+    }
+
+    const result = await uploadToCloudinary(file.buffer, 'profile/user');
+
+    const updatedUserProfile = await userModel.findByIdAndUpdate(
+      id,
+      { profileUrl: result.secure_url, public_id: result.public_id },
+      { new: true }
+    );
+
+    res.json({
+      message: 'Perfil del usuario actualizado correctamente',
+      user: updatedUserProfile
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al subir la imagen de perfil' });
   }
 };
 module.exports = {
   uploadMultipleImages,
   deleteImageFromItem,
-  replaceItemImage
+  replaceItemImage,
+  uploadBannerHeroImage,
+  uploadProfileImage
 };

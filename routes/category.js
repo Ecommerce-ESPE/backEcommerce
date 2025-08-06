@@ -3,11 +3,20 @@ const router = Router();
 
 const { crearCategoria,
         getCategorias, 
+        updateCategoria,
+        deleteCategoria,
+        deleteSubcategory
 } = require("../controllers/category.controller");
 
 //Todo: Route Category
 router.post("/", crearCategoria);
 router.get("/", getCategorias);
+
+//router.get("/:id", getCategorias);
+router.put("/:id", updateCategoria);
+router.delete("/:id", deleteCategoria);
+
+router.delete('/:categoryId/subcategory/:subcategoryId', deleteSubcategory);
 
 //router.get("/", config );
 

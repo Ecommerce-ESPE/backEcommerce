@@ -45,7 +45,7 @@ const validarAdmin = async (req, res, next) => {
             });
         }
 
-        if (usuario.rol !== 'ADMIN') {
+        if (usuario.role !== 'ADMIN') {
             return res.status(403).json({
                 ok: false,
                 msg: 'Acceso restringido: se requiere rol de ADMIN'

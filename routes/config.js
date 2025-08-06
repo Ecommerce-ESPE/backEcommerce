@@ -1,11 +1,22 @@
-const {Router} = require('express');
+const { Router } = require("express");
 const router = Router();
 
-const {config } = require("../controllers/config");
+const { validarJWT, validarAdmin } = require('../middlewares/validar-jwt');
+const { validarCampos } = require('../middlewares/validar-campos');
 
-//Todo: Route ITEMS
+const {
+  getShippingAddresses,
+  createShippingMethod,
+  getShippingMethods,
+  getAvailableShippingMethods
+} = require("../controllers/config");
 
-//router.get("/", config );
+// Rutas direcciones (requiere auth)
+router.get("/shipping-addresses", getShippingAddresses);
 
-//router.post("/", createFactura);
+// Rutas métodos de envío
+router.get("/shipping-methods", getShippingMethods); // pública o puedes protegerla
+router.post("/shipping-methods", [validarJWT, validarAdmin], createShippingMethod);
+router.get("/shipping-methods/available", [validarJWT], getAvailableShippingMethods);
+
 module.exports = router;
