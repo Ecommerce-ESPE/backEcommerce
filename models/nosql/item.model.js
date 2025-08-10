@@ -1,11 +1,18 @@
 const mongoose = require("mongoose");
+const slugify = require("slugify"); 
 
 const VariantSchema = new mongoose.Schema({
   size: String,
   icon: String,
   originalPrice: { type: Number, required: true },
   discountPrice: Number,
+  costPrice: { type: Number, default: null },
   stock: { type: Number, default: 0 },
+  priceHistory: [{
+    price: Number,
+    date: { type: Date, default: Date.now },
+    changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'users' }
+  }],
   _id: { type: mongoose.Schema.Types.ObjectId, auto: true }
 });
 
@@ -18,6 +25,9 @@ const PromotionSchema = new mongoose.Schema({
 
 const ItemSchema = new mongoose.Schema({
   nameProduct: { type: String, required: true },
+  slug: { type: String, unique: true, sparse: true, index: true },
+  sku: { type: String, unique: true, sparse: true, index: true, uppercase: true},
+  brand: String || "Generic",
   value: [VariantSchema],
   description: { type: String, default: "No description" },
   images: [{
@@ -57,6 +67,30 @@ const ItemSchema = new mongoose.Schema({
 
 // Middleware para calcular precios automáticamente
 ItemSchema.pre('save', function(next) {
+
+  if (this.isModified('nameProduct')) {
+    this.slug = slugify(this.nameProduct, { lower: true, strict: true });
+  }
+
+  if (this.isModified('brand') || this.isModified('nameProduct')) {
+    const brandPart = (this.brand || 'GEN')
+      .substring(0, 3)
+      .replace(/[^A-Za-z0-9]/g, '')
+      .toUpperCase();
+
+    const namePart = (this.nameProduct || 'PRD')
+      .substring(0, 3)
+      .replace(/[^A-Za-z0-9]/g, '')
+      .toUpperCase();
+
+    const date = new Date();
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const randomNum = Math.floor(1000 + Math.random() * 9000); // 4 dígitos aleatorios
+
+    this.sku = `${brandPart}-${namePart}-${year}-${month}-${randomNum}`;
+  }
+
   // Recalcular siempre que "promotion" cambie
   if (this.isModified('promotion')) {
     const now = new Date();
@@ -72,7 +106,7 @@ ItemSchema.pre('save', function(next) {
         
         if (now >= start && now <= end) {
           const discount = variant.originalPrice * (this.promotion.percentage / 100);
-          variant.discountPrice = Math.round(variant.originalPrice - discount);
+          variant.discountPrice = Number((variant.originalPrice - discount).toFixed(2));
         }
       }
     });

@@ -128,8 +128,60 @@ const renewToken = async(req, res = response) => {
     }
 };
 
+const register = async(req, res = response) =>{
+    const { name, email, password, phone, address, profileUrl, ci} = req.body;
+        
+        try {
+            // 2. Validar existencia de email
+            const existeEmail = await userModel.findOne({ email });
+            if (existeEmail) {
+                return res.status(400).json({
+                    ok: false,
+                    msg: 'El correo ya está registrado'
+                });
+            }
+    
+            // 3. Crear usuario con valores controlados
+            const usuario = new userModel({
+                name,
+                email,
+                password,
+                ci: ci || "", 
+                phone: phone || "",
+                //address: address || {},
+                profileUrl: profileUrl || "",
+                role: "USER", // Rol fijo explícito
+                credits: 0     // Créditos fijos explícitos
+            });
+        
+            // 4. Encriptar contraseña
+            const salt = bcrypt.genSaltSync();
+            usuario.password = bcrypt.hashSync(password, salt);
+        
+            // 5. Guardar usuario
+            await usuario.save();
+    
+            // 6. Generar token JWT
+            const token = await generarJWT(usuario.id);
+    
+            res.json({
+                ok: true,
+                usuario,
+                token
+            });
+    
+        } catch (error) {
+            console.log(error);
+            res.status(500).json({
+                ok: false,
+                msg: 'Error inesperado... revisar logs'
+            });
+        }
+}
+
 
 module.exports = {
     login,
-    renewToken
+    renewToken, 
+    register
 };

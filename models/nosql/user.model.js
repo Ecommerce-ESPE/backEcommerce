@@ -73,11 +73,6 @@ const UserSchema = new mongoose.Schema(
       default: "https://ejemplo.com/default-avatar.jpg",
       required: false
     },
-    transactions: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'factura',
-      required: false  
-    }],
     config: {
       type: String,
       default: "",
