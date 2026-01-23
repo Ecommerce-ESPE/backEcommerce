@@ -25,12 +25,18 @@ const BannerPromotionSchema = new mongoose.Schema(
         ref: "items",
       },
     ],
+    subcategories: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+      },
+    ],
     categories: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "categories",
       },
     ],
+    applyAll: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

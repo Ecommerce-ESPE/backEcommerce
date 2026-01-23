@@ -13,6 +13,13 @@ const models = {
      invoiceModel:require('./nosql/invoice.model'),
      shippingMethodModel:require('./nosql/shippingMethod.model'),
      bannerPromotionModel:require('./nosql/bannerPromotion.model'),
+     salesItemModel:require('./nosql/salesItem.model'),
+     salesSummaryDailyModel:require('./nosql/salesSummaryDaily.model'),
+     realtimeProductMinuteModel:require('./nosql/realtimeProductMinute.model'),
+     realtimeCategoryMinuteModel:require('./nosql/realtimeCategoryMinute.model'),
+     realtimeTotalsMinuteModel:require('./nosql/realtimeTotalsMinute.model'),
+     walletModel:require('./nosql/wallet.model'),
+     walletTransactionModel:require('./nosql/walletTransaction.model'),
 }
 
 module.exports = models;

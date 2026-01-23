@@ -61,5 +61,7 @@ router.get("/featured-items", getFeaturedItems);
 // BANNER PROMOTION
 router.post("/banner-promotion", createBanner);
 router.get("/banner-promotion", getAllBanners);
+router.put("/banner-promotion/:id", updateBanner);
+router.delete("/banner-promotion/:id", deleteBanner);
 
 module.exports = router;

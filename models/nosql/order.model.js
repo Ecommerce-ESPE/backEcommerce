@@ -26,6 +26,30 @@ const OrderItemSchema = new mongoose.Schema({
     min: 0,
     set: v => parseFloat(v.toFixed(2))
   },
+  unitPriceCharged: {
+    type: Number,
+    min: 0,
+    set: v => parseFloat(v.toFixed(2))
+  },
+  originalPrice: {
+    type: Number,
+    min: 0
+  },
+  pricingSource: {
+    type: String,
+    enum: ["globalPromo", "productPromo", "storedDiscount", "none"],
+    default: "none"
+  },
+  promoPercentageApplied: {
+    type: Number,
+    min: 0,
+    max: 100,
+    default: 0
+  },
+  promoId: {
+    type: mongoose.Schema.Types.ObjectId,
+    default: null
+  },
   image: { type: String }
 }, { _id: false });
 
@@ -105,6 +129,10 @@ const OrderSchema = new mongoose.Schema({
     enum: ["pending", "processing", "completed", "cancelled", "failed", "refunded"],
     default: "pending"
   },
+  paidAt: { type: Date },
+  analyticsProcessed: { type: Boolean, default: false },
+  analyticsProcessing: { type: Boolean, default: false },
+  analyticsProcessedAt: { type: Date },
   paymentMethod: { 
     type: String,
     enum: ["credit-card", "paypal", "transfer", "credits"],

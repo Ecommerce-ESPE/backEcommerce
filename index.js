@@ -4,10 +4,35 @@ require('./config/components/timeConfig');
 const cors = require('cors');
 const express = require("express");
 const path = require('path');
-const {connectDB} = require("./config/config");
+const http = require("http");
+const { Server } = require("socket.io");
+const { connectDB } = require("./config/config");
+const { initSocket } = require("./services/socket");
 
 const app =  express();
 const PORT =  process.env.PORT;
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: process.env.SOCKET_CORS_ORIGIN || "*",
+    methods: ["GET", "POST"]
+  }
+});
+
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  const expected = process.env.ADMIN_SOCKET_TOKEN;
+  if (expected && token !== expected) {
+    return next(new Error("Unauthorized"));
+  }
+  return next();
+});
+
+io.on("connection", (socket) => {
+  socket.join("admins");
+});
+
+initSocket(io);
 
 // Inicializar cron jobs
 if (process.env.NODE_ENV !== 'test') {
@@ -22,12 +47,11 @@ app.use("/api", require('./routes/index'));
 
 
 
-app.listen(PORT, ()=>{
-    connectDB();
-    console.log(`Servidor corriendo en el puerto ${PORT}`);
-    console.log(`Zona horaria: ${process.env.TZ}`);
-
-})
+server.listen(PORT, () => {
+  connectDB();
+  console.log(`Servidor corriendo en el puerto ${PORT}`);
+  console.log(`Zona horaria: ${process.env.TZ}`);
+});
 
 
 

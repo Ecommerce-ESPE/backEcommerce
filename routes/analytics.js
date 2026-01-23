@@ -1,9 +1,18 @@
-const {Router} = require('express');
-const router = Router();
+const express = require("express");
+const {
+  getSalesWeekly,
+  getSalesMonthly,
+  getSalesDaily,
+  getTopProducts,
+  getTopCategories
+} = require("../controllers/analytics.controller");
 
-const {moreSold} = require("../controllers/anality");
+const router = express.Router();
 
-//Todo: Route ITEMS 
-router.get("/moreSold", moreSold);
-router.post("/");
+router.get("/sales/weekly", getSalesWeekly);
+router.get("/sales/monthly", getSalesMonthly);
+router.get("/sales/daily", getSalesDaily);
+router.get("/top/products", getTopProducts);
+router.get("/top/categories", getTopCategories);
+
 module.exports = router;

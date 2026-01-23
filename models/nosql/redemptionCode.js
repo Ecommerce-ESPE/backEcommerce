@@ -4,6 +4,7 @@ const redemptionCodeSchema  = new mongoose.Schema(
     {
         code:{
             type:String,
+            unique: true,
         },
         value:{
             type:Number,
@@ -12,6 +13,10 @@ const redemptionCodeSchema  = new mongoose.Schema(
         redeemed:{
             type:Boolean,
             default: false
+        },
+        expiresAt:{
+            type: Date,
+            default: null
         },
         createdBy:{
             type: mongoose.Schema.Types.ObjectId,

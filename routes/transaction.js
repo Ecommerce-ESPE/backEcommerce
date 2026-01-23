@@ -27,7 +27,7 @@ router.post(
     // Validación de items del pedido
     check('order.items', 'Debe incluir al menos un producto').isArray({ min: 1 }),
     check('order.items.*.productId', 'ID de producto inválido').isMongoId(),
-    check('order.items.*.price', 'El precio debe ser un número positivo').isFloat({ gt: 0 }),
+    check('order.items.*.price', 'El precio debe ser un número positivo').optional().isFloat({ gt: 0 }),
     check('order.items.*.quantity', 'La cantidad debe ser un número entero mayor a 0').isInt({ gt: 0 }),
     check('order.items.*.variantId', 'ID de variante inválido').optional().isMongoId(),
     

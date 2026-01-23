@@ -1,8 +1,11 @@
 const express = require("express");
 const fs = require("fs");
+const { auditAuto } = require("../middlewares/auditoria");
 
 const router = express.Router();
 const PATH_ROUTES = __dirname;
+
+router.use(auditAuto());
 
 const removeExtension = (fileName)=>{
     //TODO tracks.js [tracks, js]
