@@ -1,0 +1,75 @@
+{
+  "tenantId": "DEFAULT",
+  "business": {
+    "name": "Restaurante Demo",
+    "ruc": "1790012345001",
+    "industryMode": "restaurant",
+    "currency": "USD",
+    "locale": "es-EC",
+    "timezone": "America/Guayaquil"
+  },
+  "branding": {
+    "logoUrl": "https://cdn.ejemplo.com/logo.png",
+    "faviconUrl": "https://cdn.ejemplo.com/favicon.ico",
+    "theme": {
+      "primary": "#0f172a",
+      "secondary": "#64748b",
+      "accent": "#f97316"
+    }
+  },
+  "modules": {
+    "ecommerceStorefront": true,
+    "pos": true,
+    "queuesTickets": true,
+    "kdsKitchen": true,
+    "dispatch": true,
+    "delivery": true,
+    "promotions": true,
+    "inventory": true,
+    "coupons": true,
+    "reviews": false
+  },
+  "tax": {
+    "strategy": "ecuador_iva",
+    "priceIncludesTax": false,
+    "iva": {
+      "defaultRate": 0.15,
+      "effectiveRates": [
+        { "from": "2024-04-01T00:00:00.000Z", "rate": 0.15 }
+      ],
+      "productTaxRules": [
+        { "match": { "categoryId": "66d0f0aa8b8f1b1aa0000001" }, "rate": 0.0 },
+        { "match": { "tag": "sin-iva" }, "rate": 0.0 }
+      ]
+    }
+  },
+  "sales": {
+    "orderTypesEnabled": { "pickup": true, "delivery": true, "dineIn": false },
+    "paymentMethods": { "cash": true, "card": true, "transfer": true }
+  },
+  "operations": {
+    "multiBranchEnabled": false,
+    "defaultBranchId": "DEFAULT",
+    "queues": [
+      { "key": "checkout", "label": "Caja", "enabled": true, "ticketPrefix": "C", "displayEnabled": true },
+      { "key": "pickup", "label": "Retiro", "enabled": true, "ticketPrefix": "R", "displayEnabled": true },
+      { "key": "dispatch", "label": "Despacho", "enabled": true, "ticketPrefix": "D", "displayEnabled": true }
+    ],
+    "workflow": {
+      "id": "resto-v1",
+      "stages": [
+        { "key": "created", "role": "CASHIER", "enabled": true },
+        { "key": "preparing", "role": "KITCHEN", "enabled": true },
+        { "key": "ready", "role": "DISPATCH", "enabled": true }
+      ]
+    },
+    "staff": {
+      "maxActiveTasks": { "CASHIER": 1, "KITCHEN": 2, "DISPATCH": 2, "COURIER": 1 },
+      "presence": { "heartbeatSeconds": 20, "offlineAfterSeconds": 60 }
+    }
+  },
+  "numbers": {
+    "orderNumber": { "format": "ORD-{YYYY}{MM}{DD}-{SEQ}", "reset": "daily" },
+    "ticketNumber": { "format": "T-{YYYY}{MM}{DD}-{SEQ}", "reset": "daily" }
+  }
+}

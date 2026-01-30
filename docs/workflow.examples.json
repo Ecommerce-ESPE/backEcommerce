@@ -1,0 +1,26 @@
+{
+  "restaurant": {
+    "id": "resto-v1",
+    "stages": [
+      { "key": "created", "role": "CASHIER", "enabled": true },
+      { "key": "preparing", "role": "KITCHEN", "enabled": true },
+      { "key": "ready", "role": "DISPATCH", "enabled": true }
+    ]
+  },
+  "hardware": {
+    "id": "hardware-v1",
+    "stages": [
+      { "key": "created", "role": "CASHIER", "enabled": true },
+      { "key": "picking", "role": "DISPATCH", "enabled": true },
+      { "key": "ready", "role": "DISPATCH", "enabled": true }
+    ]
+  },
+  "clothing": {
+    "id": "clothing-v1",
+    "stages": [
+      { "key": "created", "role": "CASHIER", "enabled": true },
+      { "key": "folding", "role": "DISPATCH", "enabled": true },
+      { "key": "ready", "role": "DISPATCH", "enabled": true }
+    ]
+  }
+}

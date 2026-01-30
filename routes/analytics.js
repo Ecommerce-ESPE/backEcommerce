@@ -5,7 +5,7 @@ const {
   getSalesDaily,
   getTopProducts,
   getTopCategories
-} = require("../controllers/analytics.controller");
+} = require("../controllers/analytics");
 
 const router = express.Router();
 

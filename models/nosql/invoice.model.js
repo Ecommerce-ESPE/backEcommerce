@@ -32,6 +32,8 @@ const InvoiceItemSchema = new mongoose.Schema(
 
 const InvoiceSchema = new mongoose.Schema(
   {
+    tenantId: { type: String, default: "DEFAULT", index: true },
+    branchId: { type: String, default: "DEFAULT", index: true },
     orderId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Order",
@@ -42,7 +44,47 @@ const InvoiceSchema = new mongoose.Schema(
       ref: "Transaction",
       required: true,
     },
-    invoiceNumber: { type: String, unique: true },
+    invoiceNumber: { type: String },
+    orderNumber: { type: String, default: "" },
+    issuedAt: { type: Date, default: Date.now },
+    tenantSnapshot: {
+      name: { type: String, default: "" },
+      ruc: { type: String, default: "" },
+      legalName: { type: String, default: "" },
+      commercialName: { type: String, default: "" },
+      branding: {
+        logoUrl: { type: String, default: "" },
+        theme: { type: mongoose.Schema.Types.Mixed, default: null }
+      }
+    },
+    branchSnapshot: {
+      branchId: { type: String, default: "" },
+      name: { type: String, default: "" },
+      address: { type: String, default: "" },
+      establishmentCode: { type: String, default: "" },
+      emissionPoint: { type: String, default: "" }
+    },
+    customerSnapshot: {
+      name: { type: String, default: "" },
+      idNumber: { type: String, default: "" },
+      email: { type: String, default: "" },
+      phone: { type: String, default: "" },
+      address: { type: String, default: "" }
+    },
+    termsAndConditions: { type: String, default: "" },
+    showShippingAddress: { type: Boolean, default: true },
+    showBranchInfo: { type: Boolean, default: true },
+    sriSnapshot: {
+      enabled: { type: Boolean, default: false },
+      environment: { type: String, default: "" },
+      emissionType: { type: String, default: "" },
+      obligatedAccounting: { type: String, default: "" },
+      specialContributor: { type: String, default: "" },
+      mainOfficeAddress: { type: String, default: "" },
+      authorizationNumber: { type: String, default: "" },
+      accessKey: { type: String, default: "" }
+    },
+    qrData: { type: String, default: "" },
     items: {
       type: [InvoiceItemSchema],
       required: true,
@@ -67,6 +109,8 @@ const InvoiceSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: [
+        "ISSUED",
+        "VOID",
         "pending",
         "paid",
         "processing",
@@ -76,9 +120,10 @@ const InvoiceSchema = new mongoose.Schema(
         "refunded",
         "failed"
       ],
-      default: "pending",
+      default: "ISSUED",
     },
     dueDate: { type: Date },
+    taxBreakdown: { type: mongoose.Schema.Types.Mixed, default: null },
     companyDetails: {
       name: { type: String, default: "Createx Shop" },
       address: { type: String, default: "Av. Moran Valverde, S142-54" },
@@ -108,5 +153,9 @@ InvoiceSchema.pre("save", async function (next) {
   }
   next();
 });
+
+InvoiceSchema.index({ tenantId: 1, issuedAt: 1 });
+InvoiceSchema.index({ tenantId: 1, branchId: 1 });
+InvoiceSchema.index({ tenantId: 1, invoiceNumber: 1 }, { unique: true });
 
 module.exports = mongoose.model("Invoice", InvoiceSchema);

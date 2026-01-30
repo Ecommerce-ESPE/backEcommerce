@@ -6,7 +6,7 @@ const { crearCategoria,
         updateCategoria,
         deleteCategoria,
         deleteSubcategory
-} = require("../controllers/category.controller");
+} = require("../controllers/categories");
 
 //Todo: Route Category
 router.post("/", crearCategoria);

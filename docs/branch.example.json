@@ -1,0 +1,24 @@
+{
+  "tenantId": "DEFAULT",
+  "branchId": "BR-001",
+  "code": "BR-001",
+  "name": "Sucursal Matriz",
+  "address": {
+    "line1": "Av. Principal 123",
+    "city": "Quito",
+    "province": "Pichincha",
+    "country": "EC"
+  },
+  "contact": {
+    "phone": "+593999999999",
+    "email": "sucursal@miempresa.com"
+  },
+  "invoicing": {
+    "legalName": "Mi Empresa S.A.",
+    "commercialName": "Mi Empresa",
+    "ruc": "1790012345001",
+    "addressForInvoice": "Av. Principal 123",
+    "establishmentCode": "001",
+    "emissionPoint": "002"
+  }
+}

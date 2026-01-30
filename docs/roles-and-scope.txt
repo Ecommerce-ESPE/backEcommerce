@@ -1,0 +1,113 @@
+Roles y manejo (User vs Membership vs StaffSession)
+
+1) User (global)
+- El modelo User no se rompe y mantiene roles globales: ADMIN, DEV, USER.
+- Sirve para autenticaci�n general del sistema.
+- No define permisos operativos por sucursal.
+
+2) Membership (por tenant/sucursal)
+- Es el modelo que define los roles operativos por negocio (tenant) y sucursal.
+- Campos clave:
+  - userId: referencia a User.
+  - tenantId: negocio.
+  - roles: roles operativos.
+  - branchIds: sucursales asignadas ("*") para todas.
+  - active: habilita o deshabilita al usuario operativo.
+- Roles operativos disponibles:
+  - TENANT_ADMIN: acceso total al tenant.
+  - BRANCH_ADMIN: administra sucursal(es) asignadas.
+  - CASHIER: caja/tickets/pos.
+  - KITCHEN: etapas de cocina (KDS).
+  - DISPATCH: despacho/etapas de preparaci�n.
+  - COURIER: delivery.
+  - CUSTOMER: opcional si se quiere separar cliente a nivel tenant.
+
+3) StaffSession (presencia/estado)
+- Estado en tiempo real del staff por tenant/sucursal/rol.
+- Estados: AVAILABLE, BUSY, PAUSED, OFFLINE.
+- Se actualiza con /api/staff/heartbeat y /api/staff/status.
+
+Flujo t�pico
+1) Crear User.
+2) Crear Membership con roles y branchIds.
+3) Empleado hace heartbeat para entrar en AVAILABLE.
+4) Claim de tickets/etapas actualiza StaffSession a BUSY.
+
+Notas de alcance (scope)
+- TENANT_ADMIN puede ver y operar todo el tenant.
+- Otros roles solo en sus branchIds.
+- En desarrollo se puede usar X-Tenant-Id / X-Branch-Id.
+                                                                                                                                             
+  1) Crear usuario (admin)                                                                                                                     
+  Endpoint: POST /api/admin/users                                                                                                              
+                                                                                                                                               
+  Headers (dev):                                                                                                                               
+                                                                                                                                               
+  - x-token: <JWT de un ADMIN o TENANT_ADMIN>                                                                                                  
+  - X-Tenant-Id: DEFAULT                                                                                                                       
+  - X-Branch-Id: DEFAULT                                                                                                                       
+                                                                                                                                               
+  Body:                                                                                                                                        
+                                                                                                                                               
+  {                                                                                                                                            
+    "name": "Caja 1",                                                                                                                          
+    "email": "caja1@demo.com",                                                                                                                 
+    "password": "Temp1234",                                                                                                                    
+    "phone": "0999999999"                                                                                                                      
+  }                                                                                                                                            
+                                                                                                                                               
+  2) Crear membership                                                                                                                          
+  Endpoint: POST /api/admin/memberships                                                                                                        
+                                                                                                                                               
+  Headers (dev):                                                                                                                               
+                                                                                                                                               
+  - x-token: <JWT de un ADMIN o TENANT_ADMIN>                                                                                                  
+  - X-Tenant-Id: DEFAULT                                                                                                                       
+  - X-Branch-Id: DEFAULT                                                                                                                       
+                                                                                                                                               
+  Body:                                                                                                                                        
+                                                                                                                                               
+  {                                                                                                                                            
+    "userId": "66d0f0aa8b8f1b1aa0000002",                                                                                                      
+    "roles": ["BRANCH_ADMIN", "CASHIER"],                                                                                                      
+    "branchIds": ["DEFAULT"],                                                                                                                  
+    "active": true                                                                                                                             
+  }                                                                                                                                            
+                                                                                                                                               
+  3) Heartbeat staff                                                                                                                           
+  Endpoint: POST /api/staff/heartbeat                                                                                                          
+                                                                                                                                               
+  Headers (dev):                                                                                                                               
+                                                                                                                                               
+  - x-token: <JWT del empleado>                                                                                                                
+  - X-Tenant-Id: DEFAULT                                                                                                                       
+  - X-Branch-Id: DEFAULT                                                                                                                       
+                                                                                                                                               
+  Body:                                                                                                                                        
+                                                                                                                                               
+  {                                                                                                                                            
+    "role": "CASHIER"                                                                                                                          
+  }                                                                                                                                            
+                                                                                                                                               
+  ———                                                                                                                                          
+                                                                                                                                               
+  ## ¿Cómo funcionan los headers?                                                                                                              
+                                                                                                                                               
+  ### En desarrollo (DEV)                                                                                                                      
+                                                                                                                                               
+  Si tu JWT no tiene tenantId/branchId, puedes pasar:                                                                                          
+                                                                                                                                               
+  - X-Tenant-Id para elegir el tenant.                                                                                                         
+  - X-Branch-Id para elegir la sucursal.                                                                                                       
+                                                                                                                                               
+  Esto lo leen los middlewares:                                                                                                                
+                                                                                                                                               
+  - resolveTenant → req.tenantId                                                                                                               
+  - resolveBranch → req.branchId                                                                                                               
+                                                                                                                                               
+  ### En producción                                                                                                                            
+                                                                                                                                               
+  La idea es que el JWT ya traiga tenantId/branchId (cuando lo implementes en tu auth).                                                        
+  Entonces no necesitas headers, porque el middleware los toma del token.                                                                      
+                                                                                                                                               
+  ———              

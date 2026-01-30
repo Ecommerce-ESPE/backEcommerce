@@ -1,23 +1,29 @@
 const express = require("express");
 const router = express.Router();
-const transactionController = require("../controllers/transaction.controller");
+const transactionController = require("../controllers/transactions");
 const { check } = require("express-validator");
 const { validarCampos } = require("../middlewares/validar-campos");
 const multer = require("multer");
 const upload = multer({ dest: "uploads/" });
 const { validarJWT, validarAdmin } = require('../middlewares/validar-jwt');
+const { resolveTenant } = require("../middlewares/resolveTenant");
+const { loadTenantConfig } = require("../middlewares/loadTenantConfig");
+const { resolveBranch } = require("../middlewares/resolveBranch");
 
 
 
 const {getInvoicesAll,
   getInvoicesByCustomer,
   createInvoice,
-  generateInvoicePDF,getMyTransaction,getOrdenByID} = require("../controllers/factura");
+  generateInvoicePDF,getMyTransaction,getOrdenByID} = require("../controllers/invoices");
 
 // Procesar transacción
 router.post(
   '/process',
   [
+    resolveTenant,
+    loadTenantConfig,
+    resolveBranch,
     // Validación de datos del cliente
     check('customer.name', 'El nombre del cliente es obligatorio').not().isEmpty(),
     check('customer.email', 'Ingrese un email válido').isEmail(),

@@ -2,8 +2,8 @@
     Path: '/api/login'
 */
 const { Router } = require('express');
-const { login, renewToken } = require('../controllers/auth.controller');
-const { crearUsuario } = require('../controllers/user');
+const { login, renewToken } = require('../controllers/auth');
+const { crearUsuario } = require('../controllers/users');
 const { check } = require('express-validator');
 const { validarCampos } = require('../middlewares/validar-campos');
 const { validarJWT } = require('../middlewares/validar-jwt');

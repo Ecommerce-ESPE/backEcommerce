@@ -28,6 +28,14 @@ const UserAddressSchema = new mongoose.Schema({
   telefono: {
     type: String,
     default: ""
+  },
+  label: {
+    type: String,
+    default: ""
+  },
+  isPrimary: {
+    type: Boolean,
+    default: false
   }
 }, { _id: false });
 

@@ -8,6 +8,8 @@ const TransactionHistorySchema = new mongoose.Schema({
 }, { _id: false });
 
 const TransactionSchema = new mongoose.Schema({
+  tenantId: { type: String, default: "DEFAULT", index: true },
+  branchId: { type: String, default: "DEFAULT", index: true },
   orderId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Order",
@@ -15,7 +17,7 @@ const TransactionSchema = new mongoose.Schema({
   },
   method: {
     type: String,
-    enum: ["credit-card", "paypal", "transfer", "credits"],
+    enum: ["credit-card", "paypal", "transfer", "credits", "cash"],
     required: true
   },
   amount: { 
@@ -35,6 +37,7 @@ const TransactionSchema = new mongoose.Schema({
     default: "pending"
   },
   gatewayTransactionId: { type: String },
+  taxBreakdown: { type: mongoose.Schema.Types.Mixed, default: null },
   errorDetails: {
     code: { type: String },
     message: { type: String },

@@ -20,6 +20,12 @@ const models = {
      realtimeTotalsMinuteModel:require('./nosql/realtimeTotalsMinute.model'),
      walletModel:require('./nosql/wallet.model'),
      walletTransactionModel:require('./nosql/walletTransaction.model'),
+     counterModel:require('./nosql/counter'),
+     tenantConfigModel:require('./nosql/tenantConfig.model'),
+     branchModel:require('./nosql/branch.model'),
+     membershipModel:require('./nosql/membership.model'),
+     staffSessionModel:require('./nosql/staffSession.model'),
+     serviceTicketModel:require('./nosql/serviceTicket.model'),
 }
 
 module.exports = models;

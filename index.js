@@ -6,6 +6,7 @@ const express = require("express");
 const path = require('path');
 const http = require("http");
 const { Server } = require("socket.io");
+const jwt = require("jsonwebtoken");
 const { connectDB } = require("./config/config");
 const { initSocket } = require("./services/socket");
 
@@ -22,9 +23,24 @@ const io = new Server(server, {
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token;
   const expected = process.env.ADMIN_SOCKET_TOKEN;
-  if (expected && token !== expected) {
+  if (expected && token === expected) {
+    return next();
+  }
+
+  if (token) {
+    try {
+      const { uid } = jwt.verify(token, process.env.JWT_SECRET);
+      socket.user = { uid };
+      return next();
+    } catch (err) {
+      return next(new Error("Unauthorized"));
+    }
+  }
+
+  if (expected) {
     return next(new Error("Unauthorized"));
   }
+
   return next();
 });
 

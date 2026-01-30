@@ -64,6 +64,17 @@ const ShippingAddressSchema = new mongoose.Schema({
 }, { _id: false });
 
 const OrderSchema = new mongoose.Schema({
+  tenantId: {
+    type: String,
+    default: "DEFAULT",
+    index: true
+  },
+  branchId: {
+    type: String,
+    default: "DEFAULT",
+    index: true
+  },
+  orderNumber: { type: String, default: "", index: true },
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
@@ -75,6 +86,7 @@ const OrderSchema = new mongoose.Schema({
     required: true,
     match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Email no válido']
   },
+  customerIdNumber: { type: String, default: "" },
   customerPhone: { type: String, required: true },
   products: {
     type: [OrderItemSchema],
@@ -87,11 +99,18 @@ const OrderSchema = new mongoose.Schema({
   shippingMethod: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "ShippingMethod",
-    required: true
+    required: false
   },
   shippingAddress: {
     type: ShippingAddressSchema,
-    required: true
+    required: false
+  },
+  billingInfo: {
+    name: { type: String, default: "" },
+    idNumber: { type: String, default: "" },
+    email: { type: String, default: "" },
+    phone: { type: String, default: "" },
+    address: { type: String, default: "" }
   },
   subtotal: { 
     type: Number, 
@@ -123,19 +142,72 @@ const OrderSchema = new mongoose.Schema({
     min: 0,
     set: v => parseFloat(v.toFixed(2))
   },
+  taxBreakdown: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
+  },
+  ticketId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "ServiceTicket",
+    default: null
+  },
+  checkoutMode: {
+    type: String,
+    enum: ["DIRECT", "TICKET", "ONLINE"],
+    default: "ONLINE"
+  },
+  checkoutSessionId: { type: String, default: null },
+  queueKey: { type: String, default: null },
+  workflowId: { type: String, default: null },
+  currentStageKey: { type: String, default: null },
+  stageHistory: [
+    {
+      stageKey: { type: String, required: true },
+      role: { type: String },
+      assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "users" },
+      assignedAt: { type: Date },
+      startedAt: { type: Date },
+      completedAt: { type: Date },
+      status: { type: String }
+    }
+  ],
   discountCode: { type: String },
   status: {
     type: String,
     enum: ["pending", "processing", "completed", "cancelled", "failed", "refunded"],
     default: "pending"
   },
+  orderStatus: {
+    type: String,
+    enum: ["pending", "processing", "completed", "cancelled"],
+    default: null
+  },
+  paymentStatus: {
+    type: String,
+    enum: ["pending", "paid", "failed", "refunded"],
+    default: null
+  },
+  deliveryStatus: {
+    type: String,
+    enum: ["READY", "OUT_FOR_DELIVERY", "DELIVERED", "NONE"],
+    default: "NONE"
+  },
+  deliveryStatusNormalized: {
+    type: String,
+    enum: ["none", "assigned", "in_transit", "delivered"],
+    default: null
+  },
+  deliveryAssignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "users", default: null },
+  deliveryAssignedAt: { type: Date },
+  deliveryOutAt: { type: Date },
+  deliveryDeliveredAt: { type: Date },
   paidAt: { type: Date },
   analyticsProcessed: { type: Boolean, default: false },
   analyticsProcessing: { type: Boolean, default: false },
   analyticsProcessedAt: { type: Date },
   paymentMethod: { 
     type: String,
-    enum: ["credit-card", "paypal", "transfer", "credits"],
+    enum: ["credit-card", "paypal", "transfer", "credits", "cash"],
     required: true
   },
   notes: { type: String },
@@ -151,6 +223,12 @@ const OrderSchema = new mongoose.Schema({
 OrderSchema.index({ userId: 1 });
 OrderSchema.index({ status: 1 });
 OrderSchema.index({ createdAt: -1 });
+OrderSchema.index({ orderNumber: 1 });
+OrderSchema.index({ customerEmail: 1 });
+OrderSchema.index({ orderStatus: 1 });
+OrderSchema.index({ paymentStatus: 1 });
+OrderSchema.index({ orderStatus: 1, createdAt: -1 });
+OrderSchema.index({ paymentStatus: 1, createdAt: -1 });
 
 // Middleware para actualizar el estado
 OrderSchema.pre('save', function(next) {
