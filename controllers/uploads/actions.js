@@ -1,6 +1,27 @@
 const { uploadToCloudinary } = require('../../helpers/cloudinaryUpload');
-const {itemModel, bannerHeroModel, userModel} = require('../../models/index');
+const { itemModel, bannerHeroModel, userModel, categoryModel, brandModel } = require('../../models/index');
 const cloudinary = require('cloudinary').v2;
+
+const extractCloudinaryPublicIdFromUrl = (url = '') => {
+  try {
+    const cleanUrl = String(url || '').trim();
+    if (!cleanUrl) return null;
+
+    const marker = '/upload/';
+    const uploadIdx = cleanUrl.indexOf(marker);
+    if (uploadIdx === -1) return null;
+
+    let path = cleanUrl.slice(uploadIdx + marker.length);
+    path = path.replace(/^v\d+\//, '');
+
+    const lastDot = path.lastIndexOf('.');
+    if (lastDot > -1) path = path.slice(0, lastDot);
+
+    return path || null;
+  } catch (_) {
+    return null;
+  }
+};
 
 const uploadMultipleImages = async (req, res) => {
   try {
@@ -216,10 +237,198 @@ const uploadProfileImage = async (req, res) => {
     res.status(500).json({ error: 'Error al subir la imagen de perfil' });
   }
 };
+
+// UPLOAD IMAGE CATEGORY MINI-BANNER
+const uploadCategoryMiniBannerImage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description } = req.body;
+    const file = req.file;
+
+    if (!file) {
+      return res.status(400).json({ error: 'No se envió una imagen' });
+    }
+
+    const category = await categoryModel.findById(id);
+    if (!category) {
+      return res.status(404).json({ error: 'Categoría no encontrada' });
+    }
+
+    const previousImage = Array.isArray(category.images) && category.images.length > 0
+      ? category.images[0]
+      : null;
+
+    if (previousImage && previousImage.public_id) {
+      await cloudinary.uploader.destroy(previousImage.public_id);
+    }
+
+    const result = await uploadToCloudinary(file.buffer, 'categories/mini-banners');
+
+    category.images = [
+      {
+        title: title || (previousImage ? previousImage.title : undefined),
+        description: description || (previousImage ? previousImage.description : undefined),
+        imgUrl: result.secure_url,
+        public_id: result.public_id
+      }
+    ];
+
+    await category.save();
+
+    res.json({
+      message: 'Imagen de categoría actualizada correctamente',
+      category
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al subir imagen de categoría' });
+  }
+};
+
+// UPLOAD IMAGE SUBCATEGORY
+const uploadSubcategoryImage = async (req, res) => {
+  try {
+    const { categoryId, subcategoryId } = req.params;
+    const { title, description } = req.body;
+    const file = req.file;
+
+    if (!file) {
+      return res.status(400).json({ error: "No se enviÃ³ una imagen" });
+    }
+
+    const category = await categoryModel.findById(categoryId);
+    if (!category) {
+      return res.status(404).json({ error: "CategorÃ­a no encontrada" });
+    }
+
+    const subcategory = category.subcategories.id(subcategoryId);
+    if (!subcategory) {
+      return res.status(404).json({ error: "SubcategorÃ­a no encontrada" });
+    }
+
+    const previousImage =
+      Array.isArray(subcategory.images) && subcategory.images.length > 0
+        ? subcategory.images[0]
+        : null;
+
+    if (previousImage?.public_id) {
+      await cloudinary.uploader.destroy(previousImage.public_id);
+    }
+
+    const result = await uploadToCloudinary(
+      file.buffer,
+      "categories/subcategories",
+    );
+
+    subcategory.images = [
+      {
+        title: title || (previousImage ? previousImage.title : undefined),
+        description:
+          description ||
+          (previousImage ? previousImage.description : undefined),
+        imgUrl: result.secure_url,
+        public_id: result.public_id,
+      },
+    ];
+
+    await category.save();
+
+    return res.json({
+      message: "Imagen de subcategorÃ­a actualizada correctamente",
+      subcategory,
+    });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ error: "Error al subir imagen de subcategorÃ­a" });
+  }
+};
+
+const deleteSubcategoryImage = async (req, res) => {
+  try {
+    const { categoryId, subcategoryId } = req.params;
+
+    const category = await categoryModel.findById(categoryId);
+    if (!category) {
+      return res.status(404).json({ error: "CategorÃ­a no encontrada" });
+    }
+
+    const subcategory = category.subcategories.id(subcategoryId);
+    if (!subcategory) {
+      return res.status(404).json({ error: "SubcategorÃ­a no encontrada" });
+    }
+
+    const previousImage =
+      Array.isArray(subcategory.images) && subcategory.images.length > 0
+        ? subcategory.images[0]
+        : null;
+
+    if (previousImage?.public_id) {
+      await cloudinary.uploader.destroy(previousImage.public_id);
+    }
+
+    subcategory.images = [];
+    await category.save();
+
+    return res.json({
+      message: "Imagen de subcategorÃ­a eliminada correctamente",
+      subcategory,
+    });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ error: "Error al eliminar imagen de subcategorÃ­a" });
+  }
+};
+
+// UPLOAD IMAGE BRAND LOGO
+const uploadBrandLogoImage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const file = req.file;
+
+    if (!file) {
+      return res.status(400).json({ error: "No se enviÃ³ una imagen" });
+    }
+
+    const brand = await brandModel.findById(id);
+    if (!brand) {
+      return res.status(404).json({ error: "Marca no encontrada" });
+    }
+
+    const previousPublicId =
+      (brand.logoPublicId && String(brand.logoPublicId).trim()) ||
+      extractCloudinaryPublicIdFromUrl(brand.logoUrl);
+
+    if (previousPublicId) {
+      await cloudinary.uploader.destroy(previousPublicId);
+    }
+
+    const result = await uploadToCloudinary(file.buffer, "brands/logos");
+
+    brand.logoUrl = result.secure_url;
+    brand.logoPublicId = result.public_id;
+    await brand.save();
+
+    res.json({
+      message: "Logo de marca actualizado correctamente",
+      brand
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al subir logo de marca" });
+  }
+};
 module.exports = {
   uploadMultipleImages,
   deleteImageFromItem,
   replaceItemImage,
   uploadBannerHeroImage,
-  uploadProfileImage
+  uploadProfileImage,
+  uploadCategoryMiniBannerImage,
+  uploadSubcategoryImage,
+  deleteSubcategoryImage,
+  uploadBrandLogoImage
 };

@@ -354,6 +354,149 @@ const setPrimaryAddress = async (req, res) => {
         });
     }
 }
+
+const deleteAddress = async (req, res) => {
+    const userId = req.uid;
+    const index = Number.parseInt(req.params?.index, 10);
+
+    if (!Number.isFinite(index) || index < 0) {
+        return res.status(400).json({
+            ok: false,
+            msg: 'Indice de direccion invalido'
+        });
+    }
+
+    try {
+        const usuarioDB = await userModel.findById(userId);
+        if (!usuarioDB) {
+            return res.status(404).json({
+                ok: false,
+                msg: 'No existe un usuario por ese id'
+            });
+        }
+
+        if (!Array.isArray(usuarioDB.address) || usuarioDB.address.length === 0) {
+            return res.status(400).json({
+                ok: false,
+                msg: 'El usuario no tiene direcciones registradas'
+            });
+        }
+
+        if (index >= usuarioDB.address.length) {
+            return res.status(400).json({
+                ok: false,
+                msg: 'Indice de direccion fuera de rango'
+            });
+        }
+
+        const removingPrimary = usuarioDB.address[index]?.isPrimary === true;
+        usuarioDB.address.splice(index, 1);
+
+        if (removingPrimary && usuarioDB.address.length > 0) {
+            usuarioDB.address = usuarioDB.address.map((addr, idx) => ({
+                ...(addr?.toObject ? addr.toObject() : addr),
+                isPrimary: idx === 0
+            }));
+        }
+
+        await usuarioDB.save();
+
+        return res.json({
+            ok: true,
+            usuario: usuarioDB
+        });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            ok: false,
+            msg: 'Error inesperado'
+        });
+    }
+}
+
+const updateAddress = async (req, res) => {
+    const userId = req.uid;
+    const index = Number.parseInt(req.params?.index, 10);
+    const payload = req.body || {};
+
+    if (!Number.isFinite(index) || index < 0) {
+        return res.status(400).json({
+            ok: false,
+            msg: 'Indice de direccion invalido'
+        });
+    }
+
+    try {
+        const usuarioDB = await userModel.findById(userId);
+        if (!usuarioDB) {
+            return res.status(404).json({
+                ok: false,
+                msg: 'No existe un usuario por ese id'
+            });
+        }
+
+        if (!Array.isArray(usuarioDB.address) || usuarioDB.address.length === 0) {
+            return res.status(400).json({
+                ok: false,
+                msg: 'El usuario no tiene direcciones registradas'
+            });
+        }
+
+        if (index >= usuarioDB.address.length) {
+            return res.status(400).json({
+                ok: false,
+                msg: 'Indice de direccion fuera de rango'
+            });
+        }
+
+        const current = usuarioDB.address[index];
+        const base = current?.toObject ? current.toObject() : current;
+
+        const next = {
+            ...base,
+            ...payload
+        };
+
+        if (typeof payload.isPrimary === "boolean") {
+            next.isPrimary = payload.isPrimary;
+        } else {
+            next.isPrimary = base.isPrimary === true;
+        }
+
+        if (!next.label || typeof next.label !== "string" || !next.label.trim()) {
+            next.label = base.label || `Direccion ${index + 1}`;
+        }
+
+        if (!next.codigoPostal && base.codigoPostal) {
+            next.codigoPostal = base.codigoPostal;
+        }
+
+        if (!next.telefono && base.telefono) {
+            next.telefono = base.telefono;
+        }
+
+        usuarioDB.address[index] = next;
+
+        if (next.isPrimary === true) {
+            usuarioDB.address = usuarioDB.address.map((addr, idx) => ({
+                ...(addr?.toObject ? addr.toObject() : addr),
+                isPrimary: idx === index
+            }));
+        }
+        await usuarioDB.save();
+
+        return res.json({
+            ok: true,
+            usuario: usuarioDB
+        });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            ok: false,
+            msg: 'Error inesperado'
+        });
+    }
+}
 module.exports = {
     getUserAll,
     crearUsuario,
@@ -362,5 +505,7 @@ module.exports = {
     getUserById,
     getUserByIdAdmin,
     addAdress,
-    setPrimaryAddress
+    setPrimaryAddress,
+    deleteAddress,
+    updateAddress
 }

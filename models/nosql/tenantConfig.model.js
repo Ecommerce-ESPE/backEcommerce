@@ -29,7 +29,24 @@ const ModulesSchema = new mongoose.Schema(
     promotions: { type: Boolean, default: true },
     inventory: { type: Boolean, default: true },
     coupons: { type: Boolean, default: true },
-    reviews: { type: Boolean, default: false }
+    reviews: { type: Boolean, default: false },
+    maintenance: { type: Boolean, default: true }
+  },
+  { _id: false }
+);
+
+const MaintenanceSchema = new mongoose.Schema(
+  {
+    storeMaintenanceMode: { type: Boolean, default: false },
+    maintenanceMessage: {
+      type: String,
+      default: "Sistema en mantenimiento. Intente mas tarde.",
+      maxlength: 200
+    },
+    disableStorefront: { type: Boolean, default: false },
+    disablePOS: { type: Boolean, default: false },
+    allowAdminAccess: { type: Boolean, default: true },
+    equipmentTracking: { type: Boolean, default: true }
   },
   { _id: false }
 );
@@ -98,7 +115,7 @@ const WorkflowStageSchema = new mongoose.Schema(
     key: { type: String, required: true },
     role: {
       type: String,
-      enum: ["CASHIER", "KITCHEN", "DISPATCH", "COURIER"],
+      enum: ["CASHIER", "KITCHEN", "DISPATCH", "COURIER", "ADMIN", "MANAGER"],
       required: true
     },
     enabled: { type: Boolean, default: true }
@@ -191,7 +208,15 @@ const TenantConfigSchema = new mongoose.Schema(
       ruc: { type: String, default: "" },
       industryMode: {
         type: String,
-        enum: ["restaurant", "hardware", "clothing"],
+        enum: [
+          "restaurant",
+          "hardware_store",
+          "retail",
+          "services",
+          "ecommerce",
+          "hardware",
+          "clothing"
+        ],
         default: "restaurant"
       },
       currency: { type: String, default: "USD" },
@@ -204,7 +229,8 @@ const TenantConfigSchema = new mongoose.Schema(
     sales: { type: SalesSchema, default: () => ({}) },
     operations: { type: OperationsSchema, default: () => ({}) },
     numbers: { type: NumbersSchema, default: () => ({}) },
-    invoice: { type: InvoiceConfigSchema, default: () => ({}) }
+    invoice: { type: InvoiceConfigSchema, default: () => ({}) },
+    maintenance: { type: MaintenanceSchema, default: () => ({}) }
   },
   { timestamps: true, versionKey: false }
 );
@@ -238,7 +264,8 @@ const buildDefaultTenantConfig = (tenantId = "DEFAULT") => ({
     promotions: true,
     inventory: true,
     coupons: true,
-    reviews: false
+    reviews: false,
+    maintenance: true
   },
   tax: {
     strategy: "ecuador_iva",
@@ -319,6 +346,14 @@ const buildDefaultTenantConfig = (tenantId = "DEFAULT") => ({
       authorizationNumber: "",
       accessKey: ""
     }
+  },
+  maintenance: {
+    storeMaintenanceMode: false,
+    maintenanceMessage: "Sistema en mantenimiento. Intente mas tarde.",
+    disableStorefront: false,
+    disablePOS: false,
+    allowAdminAccess: true,
+    equipmentTracking: true
   }
 });
 

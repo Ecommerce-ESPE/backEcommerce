@@ -10,8 +10,6 @@ const updateStock = async (items, session) => {
       update: {
         $inc: {
           "value.$.stock": -item.quantity,
-          "value.$.nventas": item.quantity,
-          nventas: item.quantity,
         },
       },
     },

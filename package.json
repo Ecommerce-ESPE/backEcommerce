@@ -6,7 +6,10 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start:Dev": "nodemon index.js",
-    "start": "node index.js"
+    "start": "node index.js",
+    "analytics:rebuild": "node scripts/rebuild-analytics-history.js",
+    "cleanup:testdata": "node scripts/cleanup-test-runtime-data.js --confirm",
+    "migrate:remove-nventas": "node scripts/remove-item-nventas.js"
   },
   "author": "Adrian Paladines",
   "license": "ISC",

@@ -9,6 +9,7 @@ const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 const { connectDB } = require("./config/config");
 const { initSocket } = require("./services/socket");
+const { checkMaintenanceMode } = require("./middlewares/checkMaintenanceMode");
 
 const app =  express();
 const PORT =  process.env.PORT;
@@ -59,6 +60,7 @@ if (process.env.NODE_ENV !== 'test') {
 
 app.use(cors());
 app.use(express.json());
+app.use("/api", checkMaintenanceMode);
 app.use("/api", require('./routes/index'));
 
 

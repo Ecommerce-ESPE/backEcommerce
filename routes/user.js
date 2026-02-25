@@ -11,6 +11,8 @@ const {
     getUserByIdAdmin,
     addAdress,
     setPrimaryAddress,
+    deleteAddress,
+    updateAddress,
 } = require("../controllers/users");
 
 //Todo: Route users 
@@ -21,6 +23,8 @@ router.get("/:id",getUserByIdAdmin);
 
 router.post("/add-address",[validarJWT], addAdress);
 router.put("/address/primary",[validarJWT], setPrimaryAddress);
+router.delete("/address/:index",[validarJWT], deleteAddress);
+router.put("/address/:index",[validarJWT], updateAddress);
 
 router.put("/update",[validarJWT], actualizarUsuario)
 //router.post

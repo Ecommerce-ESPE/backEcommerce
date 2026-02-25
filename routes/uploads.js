@@ -5,7 +5,11 @@ const {
   deleteImageFromItem,
   replaceItemImage,
   uploadBannerHeroImage,
-  uploadProfileImage
+  uploadProfileImage,
+  uploadCategoryMiniBannerImage,
+  uploadSubcategoryImage,
+  deleteSubcategoryImage,
+  uploadBrandLogoImage
 } = require('../controllers/uploads');
 
 const router = Router();
@@ -31,5 +35,22 @@ router.put('/banner-hero/:id/image', upload.single('image'), uploadBannerHeroIma
 
 // User profile image
 router.put('/profile/:id/image', upload.single('image'), uploadProfileImage);
+
+// Category mini-banner image
+router.put('/categories/:id/mini-banner', upload.single('image'), uploadCategoryMiniBannerImage);
+
+// Subcategory image
+router.put(
+  '/categories/:categoryId/subcategories/:subcategoryId/image',
+  upload.single('image'),
+  uploadSubcategoryImage
+);
+router.delete(
+  '/categories/:categoryId/subcategories/:subcategoryId/image',
+  deleteSubcategoryImage
+);
+
+// Brand logo image
+router.put('/brands/:id/logo', upload.single('image'), uploadBrandLogoImage);
 
 module.exports = router;

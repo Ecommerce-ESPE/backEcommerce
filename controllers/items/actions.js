@@ -1,8 +1,14 @@
-const { itemModel, bannerPromotionModel } = require("../../models/index");
+const {
+  itemModel,
+  bannerPromotionModel,
+  brandModel,
+  tagModel
+} = require("../../models/index");
 
 const mongoose = require("mongoose");
 
 const { moment } = require("../../config/components/timeConfig");
+const { slugifyText, ensureUniqueSlug } = require("../../utils/slug");
 
 const buildPriceHistoryEntry = (price, changedBy) => ({
   price,
@@ -124,9 +130,7 @@ const applyPromotionToItem = (item, percentage) => {
   const pricedVariants = item.value.map((variant) => {
     if (typeof variant.originalPrice !== "number") return variant;
     const discount = variant.originalPrice * (safePercentage / 100);
-    const discountPrice = Number(
-      (variant.originalPrice - discount).toFixed(2),
-    );
+    const discountPrice = Number((variant.originalPrice - discount).toFixed(2));
     return { ...variant, discountPrice };
   });
 
@@ -151,11 +155,333 @@ const applyPromotionToItem = (item, percentage) => {
   };
 };
 
+const resolveBrandId = async (brandId, brandName) => {
+  if (brandId) {
+    if (!mongoose.Types.ObjectId.isValid(brandId)) {
+      const error = new Error("ID de marca inválido");
+      error.status = 400;
+      throw error;
+    }
+
+    const brand = await brandModel.findById(brandId).lean();
+    if (!brand) {
+      const error = new Error("Marca no encontrada");
+      error.status = 404;
+      throw error;
+    }
+    return brand._id;
+  }
+
+  if (brandName) {
+    const cleanName = String(brandName).trim();
+    if (!cleanName) {
+      const error = new Error("Nombre de marca inválido");
+      error.status = 400;
+      throw error;
+    }
+
+    const baseSlug =
+      cleanName.toLowerCase() === "generic"
+        ? "gen"
+        : slugifyText(cleanName) || "gen";
+
+    let brand = await brandModel.findOne({ slug: baseSlug }).lean();
+    if (!brand) {
+      const uniqueSlug = await ensureUniqueSlug(brandModel, baseSlug);
+      brand = await brandModel.create({
+        name: cleanName,
+        slug: uniqueSlug,
+        active: true
+      });
+    }
+    return brand._id;
+  }
+
+  return null;
+};
+
+const resolveTags = async (tagsInput) => {
+  if (!Array.isArray(tagsInput)) return undefined;
+
+  const resolved = [];
+
+  for (const entry of tagsInput) {
+    if (!entry) continue;
+
+    if (typeof entry === "string" && mongoose.Types.ObjectId.isValid(entry)) {
+      resolved.push(entry);
+      continue;
+    }
+
+    if (mongoose.isValidObjectId(entry)) {
+      resolved.push(entry);
+      continue;
+    }
+
+    const tagName = String(entry).trim();
+    if (!tagName) continue;
+
+    const baseSlug = slugifyText(tagName);
+    if (!baseSlug) continue;
+
+    let tag = await tagModel.findOne({ slug: baseSlug }).lean();
+    if (!tag) {
+      const uniqueSlug = await ensureUniqueSlug(tagModel, baseSlug);
+      tag = await tagModel.create({
+        name: tagName,
+        slug: uniqueSlug,
+        active: true
+      });
+    }
+
+    resolved.push(tag._id);
+  }
+
+  return resolved;
+};
+
+const SPEC_TYPES = new Set([
+  "text",
+  "number",
+  "boolean",
+  "list_text",
+  "list_number",
+]);
+
+const parseBooleanValue = (value) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1 ? true : value === 0 ? false : null;
+  if (typeof value !== "string") return null;
+
+  const normalized = value.trim().toLowerCase();
+  if (["true", "1", "yes", "si"].includes(normalized)) return true;
+  if (["false", "0", "no"].includes(normalized)) return false;
+  return null;
+};
+
+const toTrimmedListFromString = (value) =>
+  String(value)
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+const normalizeSpecValue = (type, rawValue, key) => {
+  switch (type) {
+    case "text":
+      return String(rawValue ?? "").trim();
+    case "number": {
+      if (typeof rawValue === "number" && Number.isFinite(rawValue)) return rawValue;
+      if (typeof rawValue === "string" && rawValue.trim() !== "") {
+        const parsed = Number(rawValue);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+      break;
+    }
+    case "boolean": {
+      const parsed = parseBooleanValue(rawValue);
+      if (typeof parsed === "boolean") return parsed;
+      break;
+    }
+    case "list_text": {
+      if (Array.isArray(rawValue)) {
+        return rawValue
+          .map((entry) => String(entry ?? "").trim())
+          .filter(Boolean);
+      }
+      if (typeof rawValue === "string") return toTrimmedListFromString(rawValue);
+      break;
+    }
+    case "list_number": {
+      const rawList = Array.isArray(rawValue)
+        ? rawValue
+        : typeof rawValue === "string"
+          ? toTrimmedListFromString(rawValue)
+          : null;
+
+      if (Array.isArray(rawList)) {
+        const parsed = rawList.map((entry) => Number(entry));
+        if (parsed.every((value) => Number.isFinite(value))) return parsed;
+      }
+      break;
+    }
+    default:
+      break;
+  }
+
+  const error = new Error(`Valor inválido para spec "${key}" de tipo "${type}"`);
+  error.status = 400;
+  throw error;
+};
+
+const normalizeSpecs = (specsInput) => {
+  if (specsInput === undefined) return undefined;
+
+  if (!Array.isArray(specsInput)) {
+    const error = new Error("El campo specs debe ser un array");
+    error.status = 400;
+    throw error;
+  }
+
+  return specsInput.map((entry, index) => {
+    if (!entry || typeof entry !== "object") {
+      const error = new Error(`Spec en posición ${index} inválida`);
+      error.status = 400;
+      throw error;
+    }
+
+    const key = String(entry.key || "").trim();
+    const type = String(entry.type || "").trim();
+
+    if (!key) {
+      const error = new Error(`Spec en posición ${index} requiere key`);
+      error.status = 400;
+      throw error;
+    }
+
+    if (!SPEC_TYPES.has(type)) {
+      const error = new Error(`Spec "${key}" tiene type inválido`);
+      error.status = 400;
+      throw error;
+    }
+
+    const normalized = {
+      key,
+      type,
+      value: normalizeSpecValue(type, entry.value, key),
+      order: Number.isFinite(Number(entry.order)) ? Number(entry.order) : index,
+    };
+
+    if (entry.unit !== undefined && entry.unit !== null) {
+      normalized.unit = String(entry.unit).trim();
+    }
+
+    if (entry.group !== undefined && entry.group !== null) {
+      normalized.group = String(entry.group).trim();
+    }
+
+    return normalized;
+  });
+};
+
+const escapeRegExp = (value = "") =>
+  String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const resolveTagsFilter = async (tagsQuery) => {
+  if (!tagsQuery) return undefined;
+
+  const rawTokens = Array.isArray(tagsQuery)
+    ? tagsQuery
+    : String(tagsQuery).split(",");
+
+  const tokens = rawTokens
+    .map((token) => String(token || "").trim())
+    .filter(Boolean);
+
+  if (tokens.length === 0) return undefined;
+
+  const idTokens = tokens.filter((token) => mongoose.Types.ObjectId.isValid(token));
+  const slugTokens = tokens
+    .map((token) => slugifyText(token))
+    .filter(Boolean);
+
+  const tags = await tagModel
+    .find({
+      $or: [
+        ...(idTokens.length > 0 ? [{ _id: { $in: idTokens } }] : []),
+        ...(slugTokens.length > 0 ? [{ slug: { $in: slugTokens } }] : []),
+      ],
+    })
+    .select("_id")
+    .lean();
+
+  const resolvedTagIds = tags.map((tag) => tag._id);
+
+  return { $in: resolvedTagIds };
+};
+
+const buildSpecElemMatch = ({ specKey, specType, specValue, specGroup }) => {
+  if (!specKey) return undefined;
+
+  const key = String(specKey).trim();
+  if (!key) return undefined;
+
+  const elemMatch = { key };
+
+  if (specGroup !== undefined) {
+    const normalizedGroup = String(specGroup || "").trim();
+    if (normalizedGroup) elemMatch.group = normalizedGroup;
+  }
+
+  if (specType !== undefined) {
+    const normalizedType = String(specType || "").trim();
+    if (!SPEC_TYPES.has(normalizedType)) {
+      const error = new Error(`specType inválido: ${normalizedType}`);
+      error.status = 400;
+      throw error;
+    }
+    elemMatch.type = normalizedType;
+  }
+
+  if (specValue === undefined) return elemMatch;
+
+  const type = elemMatch.type || "text";
+
+  if (type === "number") {
+    const parsed = Number(specValue);
+    if (!Number.isFinite(parsed)) {
+      const error = new Error(`specValue inválido para number: ${specValue}`);
+      error.status = 400;
+      throw error;
+    }
+    elemMatch.value = parsed;
+    return elemMatch;
+  }
+
+  if (type === "boolean") {
+    const parsed = parseBooleanValue(specValue);
+    if (typeof parsed !== "boolean") {
+      const error = new Error(`specValue inválido para boolean: ${specValue}`);
+      error.status = 400;
+      throw error;
+    }
+    elemMatch.value = parsed;
+    return elemMatch;
+  }
+
+  if (type === "list_number") {
+    const list = toTrimmedListFromString(specValue).map((entry) => Number(entry));
+    if (list.length === 0 || list.some((entry) => !Number.isFinite(entry))) {
+      const error = new Error(`specValue inválido para list_number: ${specValue}`);
+      error.status = 400;
+      throw error;
+    }
+    elemMatch.value = { $all: list };
+    return elemMatch;
+  }
+
+  if (type === "list_text") {
+    const list = toTrimmedListFromString(specValue);
+    if (list.length === 0) {
+      const error = new Error(`specValue inválido para list_text: ${specValue}`);
+      error.status = 400;
+      throw error;
+    }
+    elemMatch.value = { $all: list };
+    return elemMatch;
+  }
+
+  elemMatch.value = new RegExp(`^${escapeRegExp(String(specValue).trim())}$`, "i");
+  return elemMatch;
+};
+
 // @GET ALL ITEMS
 
 const getItemsAll = async (req, res) => {
   try {
-    const data = await itemModel.find().populate("createdBy", "name email");
+    const data = await itemModel
+      .find()
+      .populate("createdBy", "name email")
+      .populate("tags", "name slug active usageCount");
 
     const now = new Date();
     const activeCategoryPromos = await bannerPromotionModel
@@ -264,7 +590,9 @@ const getItemsById = async (req, res) => {
 
       .findOne(query)
 
-      .populate("category", "name subcategories");
+      .populate("category", "name subcategories")
+      .populate("brand", "name slug logoUrl website active")
+      .populate("tags", "name slug active usageCount");
 
     if (!item) {
       return res.status(404).json({
@@ -307,7 +635,10 @@ const getItemsById = async (req, res) => {
         .sort({ startDate: -1 })
         .lean();
 
-      if (categoryPromo && typeof categoryPromo.promotionPercentage === "number") {
+      if (
+        categoryPromo &&
+        typeof categoryPromo.promotionPercentage === "number"
+      ) {
         appliedPercentage = categoryPromo.promotionPercentage;
       }
     }
@@ -361,6 +692,11 @@ const getFilteredItems = async (req, res) => {
       category,
 
       subcategory,
+      tags,
+      specKey,
+      specType,
+      specValue,
+      specGroup,
 
       sort = "createdAt_desc",
 
@@ -387,6 +723,21 @@ const getFilteredItems = async (req, res) => {
       mongoose.Types.ObjectId.isValid(subcategory)
     ) {
       query.subcategory = subcategory;
+    }
+
+    const tagFilter = await resolveTagsFilter(tags);
+    if (tagFilter) {
+      query.tags = tagFilter;
+    }
+
+    const specFilter = buildSpecElemMatch({
+      specKey,
+      specType,
+      specValue,
+      specGroup,
+    });
+    if (specFilter) {
+      query.specs = { $elemMatch: specFilter };
     }
 
     // Ordenamiento
@@ -483,6 +834,11 @@ const getFilteredItemsAdmin = async (req, res) => {
       category,
 
       subcategory,
+      tags,
+      specKey,
+      specType,
+      specValue,
+      specGroup,
 
       sort = "createdAt_desc",
 
@@ -517,6 +873,21 @@ const getFilteredItemsAdmin = async (req, res) => {
       mongoose.Types.ObjectId.isValid(subcategory)
     ) {
       query.subcategory = subcategory;
+    }
+
+    const tagFilter = await resolveTagsFilter(tags);
+    if (tagFilter) {
+      query.tags = tagFilter;
+    }
+
+    const specFilter = buildSpecElemMatch({
+      specKey,
+      specType,
+      specValue,
+      specGroup,
+    });
+    if (specFilter) {
+      query.specs = { $elemMatch: specFilter };
     }
 
     // Ordenamiento
@@ -611,6 +982,7 @@ const createItem = async (req, res) => {
       nameProduct,
 
       description,
+      content,
 
       category,
 
@@ -624,9 +996,12 @@ const createItem = async (req, res) => {
 
       stock,
 
-      //tags,
+      tags,
+      specs,
 
       visibility = true,
+      brand,
+      brandName,
     } = req.body;
 
     // Ajustar fechas de promoción si existen
@@ -649,12 +1024,28 @@ const createItem = async (req, res) => {
       }
     }
 
+    const resolvedBrandId = await resolveBrandId(brand, brandName);
+    if (!resolvedBrandId) {
+      return res.status(400).json({
+        code: "400",
+
+        ok: false,
+
+        message: "Marca requerida para crear el producto",
+      });
+    }
+
+    const resolvedTags = await resolveTags(tags);
+    const normalizedSpecs = normalizeSpecs(specs);
+
     // Crear item con valores controlados
 
     const item = new itemModel({
       nameProduct,
 
       description: description || "",
+
+      content: content || "",
 
       category,
 
@@ -668,7 +1059,10 @@ const createItem = async (req, res) => {
 
       stock: stock || 0,
 
-      //tags: tags || [],
+      tags: resolvedTags || [],
+      specs: normalizedSpecs || [],
+
+      brand: resolvedBrandId,
 
       visibility,
 
@@ -691,8 +1085,8 @@ const createItem = async (req, res) => {
       item: data,
     });
   } catch (error) {
-    res.status(500).json({
-      code: "500",
+    res.status(error.status || 500).json({
+      code: error.status ? String(error.status) : "500",
 
       ok: false,
 
@@ -719,6 +1113,22 @@ const updateItem = async (req, res) => {
 
         message: "ID de producto inválido",
       });
+    }
+
+    if (updateData.brand || updateData.brandName) {
+      updateData.brand = await resolveBrandId(
+        updateData.brand,
+        updateData.brandName,
+      );
+      delete updateData.brandName;
+    }
+
+    if (updateData.tags) {
+      updateData.tags = await resolveTags(updateData.tags);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updateData, "specs")) {
+      updateData.specs = normalizeSpecs(updateData.specs);
     }
 
     // Ajustar fechas si existen
@@ -793,8 +1203,8 @@ const updateItem = async (req, res) => {
   } catch (error) {
     console.error("Error actualizando producto:", error);
 
-    res.status(500).json({
-      code: "500",
+    res.status(error.status || 500).json({
+      code: error.status ? String(error.status) : "500",
 
       ok: false,
 

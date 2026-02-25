@@ -1,30 +1,43 @@
 const mongoose = require("mongoose");
 
 const BrandSchema = new mongoose.Schema(
-    {
-        name: {
-            type: String,
-            required: true,
-            unique: true,
-            trim: true
-        },
-        description: {
-            type: String,
-            default: "No description"
-        },
-        logo: {
-            type: String, // URL del logo de la marca
-            default: ""
-        },
-        website: {
-            type: String, // Sitio web oficial (opcional)
-            default: ""
-        }
+  {
+    name: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
     },
-    {
-        timestamps: true,
-        versionKey: false
-    }
+    slug: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+    },
+    logoUrl: {
+      type: String,
+      default: "",
+    },
+    logoPublicId: {
+      type: String,
+      default: "",
+    },
+    website: {
+      type: String,
+      default: "",
+    },
+    active: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
+  },
+  {
+    timestamps: true,
+    versionKey: false,
+  },
 );
 
-module.exports = mongoose.model("brands", BrandSchema);
+BrandSchema.index({ slug: 1 }, { unique: true });
+
+module.exports = mongoose.model("Brand", BrandSchema);

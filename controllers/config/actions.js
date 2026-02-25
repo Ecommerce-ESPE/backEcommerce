@@ -11,6 +11,23 @@ const confg = () => {
 
 const {shippingMethodModel, userModel} = require('../../models/index');
 
+const normalizeProvince = (value = "") => String(value).trim().toUpperCase();
+
+const isMethodAvailableForProvince = (method, province) => {
+  if (!province) return true;
+
+  const allow = Array.isArray(method.provinciasPermitidas)
+    ? method.provinciasPermitidas.map(normalizeProvince)
+    : [];
+  const deny = Array.isArray(method.provinciasRestringidas)
+    ? method.provinciasRestringidas.map(normalizeProvince)
+    : [];
+
+  if (allow.length > 0 && !allow.includes(province)) return false;
+  if (deny.length > 0 && deny.includes(province)) return false;
+  return true;
+};
+
 // CARGAR DIRECCIONES DE ENVÍO DESDE UN ARCHIVO JSON
 const getShippingAddresses = (req, res) => {
   try {
@@ -33,6 +50,9 @@ const createShippingMethod = async (req, res) => {
     const {
       costo,
       descripcion,
+      tiempoEstimado,
+      isFeatured,
+      priority,
       empresa,
       tipoEnvio,
       provinciasPermitidas,
@@ -52,6 +72,9 @@ const createShippingMethod = async (req, res) => {
     const newShippingMethod = new shippingMethodModel({
       costo,
       descripcion,
+      tiempoEstimado: String(tiempoEstimado || "").trim(),
+      isFeatured: Boolean(isFeatured),
+      priority: Number.isFinite(Number(priority)) ? Number(priority) : 0,
       empresa,
       tipoEnvio,
       provinciasPermitidas: provinciasPermitidas || [],
@@ -144,11 +167,45 @@ const getAvailableShippingMethods = async (req, res) => {
   }
 };
 
+const getShippingMethodHighlights = async (req, res) => {
+  try {
+    const limit = Math.min(10, Math.max(1, parseInt(req.query.limit, 10) || 3));
+    const province = normalizeProvince(req.query.provincia || req.query.province || "");
+
+    const methods = await shippingMethodModel
+      .find({ visible: true })
+      .sort({ isFeatured: -1, priority: -1, costo: 1, createdAt: -1 })
+      .lean();
+
+    const items = methods
+      .filter((method) => isMethodAvailableForProvince(method, province))
+      .slice(0, limit)
+      .map((method) => ({
+        id: method._id,
+        delivery: method.empresa || "Delivery",
+        type: method.tipoEnvio,
+        howLong: method.tiempoEstimado || method.descripcion || "",
+        howMuch: method.costo,
+        currency: "USD"
+      }));
+
+    return res.status(200).json({
+      ok: true,
+      total: items.length,
+      items
+    });
+  } catch (error) {
+    console.error("Error fetching shipping highlights:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 module.exports = {
   confg,
   getShippingAddresses,
   // METODOS DE ENVIO
   createShippingMethod, 
   getShippingMethods,
-  getAvailableShippingMethods
+  getAvailableShippingMethods,
+  getShippingMethodHighlights
 };

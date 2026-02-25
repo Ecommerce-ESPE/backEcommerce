@@ -26,6 +26,8 @@ const models = {
      membershipModel:require('./nosql/membership.model'),
      staffSessionModel:require('./nosql/staffSession.model'),
      serviceTicketModel:require('./nosql/serviceTicket.model'),
+     brandModel:require('./nosql/brand.model'),
+     tagModel:require('./nosql/tag.model'),
 }
 
 module.exports = models;

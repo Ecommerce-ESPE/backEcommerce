@@ -3,6 +3,9 @@ const router = Router();
 
 const { crearCategoria,
         getCategorias, 
+        getCategoriaById,
+        getCategorySpecTemplate,
+        getPopularCategories,
         updateCategoria,
         deleteCategoria,
         deleteSubcategory
@@ -11,8 +14,10 @@ const { crearCategoria,
 //Todo: Route Category
 router.post("/", crearCategoria);
 router.get("/", getCategorias);
-
-//router.get("/:id", getCategorias);
+router.get("/popular", getPopularCategories);
+router.get("/:id/spec-template", getCategorySpecTemplate);
+router.get("/:id/subcategory/:subcategoryId/spec-template", getCategorySpecTemplate);
+router.get("/:id", getCategoriaById);
 router.put("/:id", updateCategoria);
 router.delete("/:id", deleteCategoria);
 

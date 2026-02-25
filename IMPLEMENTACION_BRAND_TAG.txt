@@ -1,0 +1,99 @@
+Resumen
+- Se implementaron colecciones Brand y Tag con soft delete (active=false).
+- Se integraron Brand/Tag en Product (items) con populate selectivo.
+- El slug del producto ahora incluye la marca real: brand.slug + nombre.
+- Se agregaron scripts de migracion para asignar marca y regenerar slug.
+
+Archivos creados
+- controllers/brands/actions.js
+- controllers/brands/index.js
+- controllers/tags/actions.js
+- controllers/tags/index.js
+- models/nosql/tag.model.js
+- routes/brands.js
+- routes/tags.js
+- scripts/migrate_brand_and_slug.js
+- scripts/patch_product_brand_after_edit.js
+- utils/slug.js
+- IMPLEMENTACION_BRAND_TAG.txt
+
+Archivos modificados
+- models/nosql/brand.model.js
+- models/nosql/item.model.js
+- controllers/items/actions.js
+- models/index.js
+
+Endpoints (Brand)
+- POST /brands
+  Request:
+  {
+    "name": "Apple",
+    "logoUrl": "https://example.com/apple.png",
+    "website": "https://apple.com"
+  }
+  Response:
+  { "code":"201","ok":true,"item":{ "_id":"...", "name":"Apple","slug":"apple","active":true } }
+
+- GET /brands?q=app
+  Response:
+  { "code":"200","ok":true,"items":[...] }
+  Nota: por defecto solo active=true. Para incluir inactivas: ?includeInactive=true
+
+- GET /brands/:id
+  Response:
+  { "code":"200","ok":true,"item":{...} }
+
+- DELETE /brands/:id
+  Response:
+  { "code":"200","ok":true,"item":{ "active":false, ... } }
+
+Endpoints (Tag)
+- POST /tags
+  Request:
+  { "name": "iphone" }
+  Response:
+  { "code":"201","ok":true,"item":{ "_id":"...", "name":"iphone","slug":"iphone","active":true } }
+
+- GET /tags?q=iph
+  Response:
+  { "code":"200","ok":true,"items":[...] }
+
+- GET /tags/:id
+  Response:
+  { "code":"200","ok":true,"item":{...} }
+
+- DELETE /tags/:id
+  Response:
+  { "code":"200","ok":true,"item":{ "active":false, ... } }
+
+Integracion en Product (items)
+- Campos nuevos:
+  - brand: ObjectId ref Brand (requerido para nuevos productos)
+  - tags: [ObjectId] ref Tag (opcional)
+- GET /items/:id ahora retorna brand y tags con populate selectivo.
+- POST /items:
+  - Acepta brand (id) o brandName (string).
+  - Acepta tags como array de strings o array de ids.
+
+Slug de producto
+- Formato: `${brand.slug}-${slugify(nameProduct)}`
+- Si no hay brand (solo migracion), usa "gen".
+- Colisiones se resuelven con sufijos -2, -3, etc.
+
+Scripts de migracion
+- Ejecutar:
+  node scripts/migrate_brand_and_slug.js
+
+  Logica:
+  - Detecta marca desde campos existentes (brandName, marca, provider, etc.)
+  - Si no hay, aplica heuristicas por nombre (iphone=>Apple, samsung=>Samsung, etc.)
+  - Si no detecta, asigna Generic (slug gen)
+  - Actualiza product.brand y recalcula slug
+
+- Recalculo opcional de slug:
+  node scripts/patch_product_brand_after_edit.js
+
+Notas de compatibilidad
+- No se rompe el formato de respuesta {code, ok, item/items}.
+- Slug anterior se conserva hasta que el producto cambie de nombre/marca o se ejecute migracion.
+- Soft delete en Brand/Tag mantiene productos vigentes; se pueden seguir populando aunque active=false.

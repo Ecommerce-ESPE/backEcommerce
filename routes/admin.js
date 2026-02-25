@@ -1,19 +1,20 @@
 const { Router } = require("express");
-const {
-  getTenantConfig,
-  updateTenantConfig,
-  resetTenantConfig
-} = require("../controllers/tenant");
+const { resetTenantConfig } = require("../controllers/tenant");
+const { getTenantConfig, patchTenantConfig } = require("../controllers/tenantConfig.controller");
 const {
   createUserAdmin,
   createMembership,
   getMemberships,
   updateMembership
 } = require("../controllers/membership");
+const { createInvoiceForOrder, getInvoiceAdmin } = require("../controllers/invoices-api");
 const {
-  createInvoiceForOrder,
-  getInvoiceAdmin
-} = require("../controllers/invoices-api");
+  listBranches,
+  getBranchById,
+  createBranch,
+  updateBranch,
+  deleteBranch
+} = require("../controllers/branches");
 const { validarJWT } = require("../middlewares/validar-jwt");
 const { resolveTenant } = require("../middlewares/resolveTenant");
 const { loadTenantConfig } = require("../middlewares/loadTenantConfig");
@@ -50,15 +51,21 @@ router.use(resolveMembership);
 router.use(requireAdminOrTenantAdmin);
 
 router.get("/tenant-config", getTenantConfig);
-router.put("/tenant-config", updateTenantConfig);
+router.put("/tenant-config", patchTenantConfig);
+router.patch("/tenant-config", patchTenantConfig);
 router.post("/tenant-config/reset", resetTenantConfig);
 
 router.post("/users", createUserAdmin);
 router.post("/memberships", createMembership);
 router.get("/memberships", getMemberships);
 router.put("/memberships/:id", updateMembership);
-// MODULO DE FACTURACIÓN, para administradores
-// Crear factura para una orden
+
+router.get("/branches", listBranches);
+router.get("/branches/:branchId", getBranchById);
+router.post("/branches", createBranch);
+router.patch("/branches/:branchId", updateBranch);
+router.delete("/branches/:branchId", deleteBranch);
+
 router.post("/orders/:id/invoice", resolveBranch, createInvoiceForOrder);
 router.get("/invoices/:id", getInvoiceAdmin);
 
