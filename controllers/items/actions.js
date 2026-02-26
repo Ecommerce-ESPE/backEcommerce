@@ -1,6 +1,7 @@
 const {
   itemModel,
   bannerPromotionModel,
+  categoryModel,
   brandModel,
   tagModel
 } = require("../../models/index");
@@ -365,6 +366,79 @@ const normalizeSpecs = (specsInput) => {
 
 const escapeRegExp = (value = "") =>
   String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const normalizeLooseText = (value = "") =>
+  String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+
+const resolveCategorySubcategoryFilters = async ({
+  categoryQuery,
+  subcategoryQuery,
+}) => {
+  let resolvedCategoryId;
+  let resolvedSubcategoryId;
+
+  const rawCategory = String(categoryQuery || "").trim();
+  if (rawCategory && rawCategory.toLowerCase() !== "ninguna") {
+    if (mongoose.Types.ObjectId.isValid(rawCategory)) {
+      resolvedCategoryId = rawCategory;
+    } else {
+      let categoryDoc = await categoryModel
+        .findOne({
+          name: { $regex: `^${escapeRegExp(rawCategory)}$`, $options: "i" },
+        })
+        .select("_id")
+        .lean();
+      if (!categoryDoc) {
+        const normalizedCategory = normalizeLooseText(rawCategory);
+        const categories = await categoryModel.find().select("_id name").lean();
+        categoryDoc = categories.find(
+          (cat) => normalizeLooseText(cat?.name) === normalizedCategory
+        );
+      }
+      if (!categoryDoc) return null;
+      resolvedCategoryId = categoryDoc._id;
+    }
+  }
+
+  const rawSubcategory = String(subcategoryQuery || "").trim();
+  if (rawSubcategory && rawSubcategory.toLowerCase() !== "ninguna") {
+    if (mongoose.Types.ObjectId.isValid(rawSubcategory)) {
+      resolvedSubcategoryId = rawSubcategory;
+    } else {
+      const normalizedSubcategory = normalizeLooseText(rawSubcategory);
+      const categoryDocs = resolvedCategoryId
+        ? await categoryModel
+            .find({ _id: resolvedCategoryId })
+            .select("_id subcategories")
+            .lean()
+        : await categoryModel.find().select("_id subcategories").lean();
+
+      let matched = null;
+      for (const cat of categoryDocs) {
+        const sub = (cat.subcategories || []).find(
+          (entry) => normalizeLooseText(entry?.name) === normalizedSubcategory
+        );
+        if (sub?._id) {
+          matched = { categoryId: cat._id, subcategoryId: sub._id };
+          break;
+        }
+      }
+
+      if (!matched) return null;
+      resolvedSubcategoryId = matched.subcategoryId;
+      if (!resolvedCategoryId) resolvedCategoryId = matched.categoryId;
+    }
+  }
+
+  return {
+    category: resolvedCategoryId,
+    subcategory: resolvedSubcategoryId,
+  };
+};
 
 const resolveTagsFilter = async (tagsQuery) => {
   if (!tagsQuery) return undefined;
@@ -737,20 +811,25 @@ const getFilteredItems = async (req, res) => {
 
     // 1. Validar si los valores son ObjectIds antes de agregarlos al query
 
-    if (
-      category &&
-      category !== "ninguna" &&
-      mongoose.Types.ObjectId.isValid(category)
-    ) {
-      query.category = category;
+    const resolvedCategoryFilters = await resolveCategorySubcategoryFilters({
+      categoryQuery: category,
+      subcategoryQuery: subcategory,
+    });
+    if (resolvedCategoryFilters === null) {
+      return res.json({
+        code: "200",
+        ok: true,
+        total: 0,
+        page: parseInt(page),
+        totalPages: 0,
+        items: [],
+      });
     }
-
-    if (
-      subcategory &&
-      subcategory !== "ninguna" &&
-      mongoose.Types.ObjectId.isValid(subcategory)
-    ) {
-      query.subcategory = subcategory;
+    if (resolvedCategoryFilters?.category) {
+      query.category = resolvedCategoryFilters.category;
+    }
+    if (resolvedCategoryFilters?.subcategory) {
+      query.subcategory = resolvedCategoryFilters.subcategory;
     }
 
     const brandFilter = await resolveBrandFilter(brand || brandId || marca);
@@ -904,20 +983,25 @@ const getFilteredItemsAdmin = async (req, res) => {
 
     // 1. Validar si los valores son ObjectIds antes de agregarlos al query
 
-    if (
-      category &&
-      category !== "ninguna" &&
-      mongoose.Types.ObjectId.isValid(category)
-    ) {
-      query.category = category;
+    const resolvedCategoryFilters = await resolveCategorySubcategoryFilters({
+      categoryQuery: category,
+      subcategoryQuery: subcategory,
+    });
+    if (resolvedCategoryFilters === null) {
+      return res.json({
+        code: "200",
+        ok: true,
+        total: 0,
+        page: parseInt(page),
+        totalPages: 0,
+        items: [],
+      });
     }
-
-    if (
-      subcategory &&
-      subcategory !== "ninguna" &&
-      mongoose.Types.ObjectId.isValid(subcategory)
-    ) {
-      query.subcategory = subcategory;
+    if (resolvedCategoryFilters?.category) {
+      query.category = resolvedCategoryFilters.category;
+    }
+    if (resolvedCategoryFilters?.subcategory) {
+      query.subcategory = resolvedCategoryFilters.subcategory;
     }
 
     const brandFilter = await resolveBrandFilter(brand || brandId || marca);
