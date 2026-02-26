@@ -399,6 +399,32 @@ const resolveTagsFilter = async (tagsQuery) => {
   return { $in: resolvedTagIds };
 };
 
+const resolveBrandFilter = async (brandQuery) => {
+  if (!brandQuery) return undefined;
+
+  const token = String(brandQuery || "").trim();
+  if (!token || token.toLowerCase() === "ninguna") return undefined;
+
+  if (mongoose.Types.ObjectId.isValid(token)) {
+    return token;
+  }
+
+  const slugToken = slugifyText(token);
+
+  const brand = await brandModel
+    .findOne({
+      $or: [
+        ...(slugToken ? [{ slug: slugToken }] : []),
+        { name: { $regex: `^${escapeRegExp(token)}$`, $options: "i" } },
+      ],
+    })
+    .select("_id")
+    .lean();
+
+  if (!brand) return null;
+  return brand._id;
+};
+
 const buildSpecElemMatch = ({ specKey, specType, specValue, specGroup }) => {
   if (!specKey) return undefined;
 
@@ -690,7 +716,9 @@ const getFilteredItems = async (req, res) => {
   try {
     const {
       category,
-
+      brand,
+      brandId,
+      marca,
       subcategory,
       tags,
       specKey,
@@ -723,6 +751,21 @@ const getFilteredItems = async (req, res) => {
       mongoose.Types.ObjectId.isValid(subcategory)
     ) {
       query.subcategory = subcategory;
+    }
+
+    const brandFilter = await resolveBrandFilter(brand || brandId || marca);
+    if (brandFilter === null) {
+      return res.json({
+        code: "200",
+        ok: true,
+        total: 0,
+        page: parseInt(page),
+        totalPages: 0,
+        items: [],
+      });
+    }
+    if (brandFilter) {
+      query.brand = brandFilter;
     }
 
     const tagFilter = await resolveTagsFilter(tags);
@@ -832,7 +875,9 @@ const getFilteredItemsAdmin = async (req, res) => {
   try {
     const {
       category,
-
+      brand,
+      brandId,
+      marca,
       subcategory,
       tags,
       specKey,
@@ -873,6 +918,21 @@ const getFilteredItemsAdmin = async (req, res) => {
       mongoose.Types.ObjectId.isValid(subcategory)
     ) {
       query.subcategory = subcategory;
+    }
+
+    const brandFilter = await resolveBrandFilter(brand || brandId || marca);
+    if (brandFilter === null) {
+      return res.json({
+        code: "200",
+        ok: true,
+        total: 0,
+        page: parseInt(page),
+        totalPages: 0,
+        items: [],
+      });
+    }
+    if (brandFilter) {
+      query.brand = brandFilter;
     }
 
     const tagFilter = await resolveTagsFilter(tags);

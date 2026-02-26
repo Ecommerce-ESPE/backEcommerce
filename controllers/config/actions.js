@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const mongoose = require("mongoose");
 
 // Función para configurar o retornar opciones si fuera necesario
 const confg = () => {
@@ -94,7 +95,42 @@ const createShippingMethod = async (req, res) => {
 // OBTENER TODOS LOS MÉTODOS DE ENVÍO EXCEPTO LOS NO VISIBLES
 const getShippingMethods = async (req, res) => {
   try {
-    const shippingMethods = await shippingMethodModel.find();
+    const rawPage = parseInt(req.query.page, 10);
+    const rawLimit = parseInt(req.query.limit, 10);
+    const shouldPaginate =
+      Number.isFinite(rawPage) || Number.isFinite(rawLimit) || req.query.paginated === "true";
+
+    if (shouldPaginate) {
+      const page = Math.max(1, Number.isFinite(rawPage) ? rawPage : 1);
+      const limit = Math.min(100, Math.max(1, Number.isFinite(rawLimit) ? rawLimit : 10));
+      const skip = (page - 1) * limit;
+
+      const [items, total] = await Promise.all([
+        shippingMethodModel
+          .find()
+          .sort({ isFeatured: -1, priority: -1, createdAt: -1 })
+          .skip(skip)
+          .limit(limit),
+        shippingMethodModel.countDocuments()
+      ]);
+
+      return res.status(200).json({
+        ok: true,
+        items,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit) || 1,
+          hasNextPage: page * limit < total,
+          hasPrevPage: page > 1
+        }
+      });
+    }
+
+    const shippingMethods = await shippingMethodModel
+      .find()
+      .sort({ isFeatured: -1, priority: -1, createdAt: -1 });
 
     if (!shippingMethods || shippingMethods.length === 0) {
       return res.status(404).json({ message: "No shipping methods found" });
@@ -106,6 +142,25 @@ const getShippingMethods = async (req, res) => {
     return res.status(500).json({ error: "Internal server error" });
   }
 }
+
+const getShippingMethodById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "ID de metodo de envio invalido" });
+    }
+    const method = await shippingMethodModel.findById(id);
+
+    if (!method) {
+      return res.status(404).json({ error: "Metodo de envio no encontrado" });
+    }
+
+    return res.status(200).json(method);
+  } catch (error) {
+    console.error("Error fetching shipping method by id:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
 
 // filtrarMetodosPorProvincia
 // filtrarMetodosPorProvincia
@@ -167,6 +222,122 @@ const getAvailableShippingMethods = async (req, res) => {
   }
 };
 
+const patchShippingMethod = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const allowedFields = [
+      "costo",
+      "descripcion",
+      "tiempoEstimado",
+      "visible",
+      "isFeatured",
+      "priority",
+      "empresa",
+      "tipoEnvio",
+      "provinciasPermitidas",
+      "provinciasRestringidas"
+    ];
+
+    const incoming = req.body || {};
+    const patch = {};
+
+    Object.keys(incoming).forEach((key) => {
+      if (allowedFields.includes(key)) {
+        patch[key] = incoming[key];
+      }
+    });
+
+    if (Object.keys(patch).length === 0) {
+      return res.status(400).json({ error: "No hay campos validos para actualizar" });
+    }
+
+    if (patch.costo !== undefined) {
+      if (typeof patch.costo !== "number" || patch.costo < 0) {
+        return res.status(400).json({ error: "costo invalido" });
+      }
+    }
+
+    if (patch.descripcion !== undefined) {
+      if (!String(patch.descripcion || "").trim()) {
+        return res.status(400).json({ error: "descripcion invalida" });
+      }
+      patch.descripcion = String(patch.descripcion).trim();
+    }
+
+    if (patch.empresa !== undefined) {
+      if (!String(patch.empresa || "").trim()) {
+        return res.status(400).json({ error: "empresa invalida" });
+      }
+      patch.empresa = String(patch.empresa).trim();
+    }
+
+    if (patch.tipoEnvio !== undefined) {
+      if (!String(patch.tipoEnvio || "").trim()) {
+        return res.status(400).json({ error: "tipoEnvio invalido" });
+      }
+      patch.tipoEnvio = String(patch.tipoEnvio).trim();
+    }
+
+    if (patch.tiempoEstimado !== undefined) {
+      patch.tiempoEstimado = String(patch.tiempoEstimado || "").trim();
+    }
+
+    if (patch.visible !== undefined) patch.visible = Boolean(patch.visible);
+    if (patch.isFeatured !== undefined) patch.isFeatured = Boolean(patch.isFeatured);
+
+    if (patch.priority !== undefined) {
+      patch.priority = Number(patch.priority);
+      if (!Number.isFinite(patch.priority)) {
+        return res.status(400).json({ error: "priority invalido" });
+      }
+    }
+
+    if (patch.provinciasPermitidas !== undefined) {
+      if (!Array.isArray(patch.provinciasPermitidas)) {
+        return res.status(400).json({ error: "provinciasPermitidas debe ser un array" });
+      }
+      patch.provinciasPermitidas = patch.provinciasPermitidas.map(normalizeProvince);
+    }
+
+    if (patch.provinciasRestringidas !== undefined) {
+      if (!Array.isArray(patch.provinciasRestringidas)) {
+        return res.status(400).json({ error: "provinciasRestringidas debe ser un array" });
+      }
+      patch.provinciasRestringidas = patch.provinciasRestringidas.map(normalizeProvince);
+    }
+
+    const updated = await shippingMethodModel.findByIdAndUpdate(id, patch, {
+      new: true,
+      runValidators: true
+    });
+
+    if (!updated) {
+      return res.status(404).json({ error: "Metodo de envio no encontrado" });
+    }
+
+    return res.status(200).json(updated);
+  } catch (error) {
+    console.error("Error actualizando metodo de envio:", error);
+    return res.status(500).json({ error: "Error interno del servidor" });
+  }
+};
+
+const deleteShippingMethod = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await shippingMethodModel.findByIdAndDelete(id);
+
+    if (!deleted) {
+      return res.status(404).json({ error: "Metodo de envio no encontrado" });
+    }
+
+    return res.status(200).json({ ok: true, message: "Metodo de envio eliminado" });
+  } catch (error) {
+    console.error("Error eliminando metodo de envio:", error);
+    return res.status(500).json({ error: "Error interno del servidor" });
+  }
+};
+
 const getShippingMethodHighlights = async (req, res) => {
   try {
     const limit = Math.min(10, Math.max(1, parseInt(req.query.limit, 10) || 3));
@@ -204,8 +375,11 @@ module.exports = {
   confg,
   getShippingAddresses,
   // METODOS DE ENVIO
-  createShippingMethod, 
+  createShippingMethod,
+  patchShippingMethod,
+  deleteShippingMethod,
   getShippingMethods,
+  getShippingMethodById,
   getAvailableShippingMethods,
   getShippingMethodHighlights
 };

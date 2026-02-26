@@ -94,9 +94,14 @@ const getPublicBranding = async (req, res) => {
         message: "Tenant no encontrado"
       });
     }
+    const businessName = config?.business?.name || "";
     return res.json({
       ok: true,
-      data: config.branding || {},
+      data: {
+        ...(config.branding || {}),
+        businessName,
+        storeName: businessName
+      },
       message: "OK"
     });
   } catch (error) {
@@ -133,10 +138,53 @@ const getPublicModules = async (req, res) => {
   }
 };
 
+const getPublicStoreSettings = async (req, res) => {
+  try {
+    const tenantId = req.query.tenantId || "DEFAULT";
+    const config = await tenantConfigModel.findOne({ tenantId }).lean();
+    if (!config) {
+      return res.status(404).json({
+        ok: false,
+        data: null,
+        message: "Tenant no encontrado"
+      });
+    }
+
+    return res.json({
+      ok: true,
+      data: {
+        business: {
+          name: config?.business?.name || "",
+          currency: config?.business?.currency || "USD",
+          locale: config?.business?.locale || "es-EC",
+          timezone: config?.business?.timezone || "America/Guayaquil"
+        },
+        branding: config.branding || {},
+        tax: {
+          strategy: config?.tax?.strategy || "ecuador_iva",
+          priceIncludesTax: Boolean(config?.tax?.priceIncludesTax),
+          iva: {
+            enabled: (config?.tax?.strategy || "ecuador_iva") === "ecuador_iva",
+            defaultRate: Number(config?.tax?.iva?.defaultRate || 0)
+          }
+        }
+      },
+      message: "OK"
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      data: null,
+      message: "Error obteniendo configuracion publica"
+    });
+  }
+};
+
 module.exports = {
   getTenantConfig,
   updateTenantConfig,
   resetTenantConfig,
   getPublicBranding,
-  getPublicModules
+  getPublicModules,
+  getPublicStoreSettings
 };
