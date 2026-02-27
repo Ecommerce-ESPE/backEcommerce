@@ -5,6 +5,7 @@ const {
   getItemsAll,
   createItem,
   getItemsById,
+  getItemsSuggest,
   getFilteredItems,
   updateItemPromotion,
   updateItem,
@@ -13,6 +14,7 @@ const {
 } = require("../controllers/items");
 
 // SEARCH
+router.get('/suggest', getItemsSuggest);
 router.get('/filter', getFilteredItems);
 router.get('/admin/filter', getFilteredItemsAdmin);
 

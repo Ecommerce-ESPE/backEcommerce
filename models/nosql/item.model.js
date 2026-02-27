@@ -2,6 +2,14 @@ const mongoose = require("mongoose");
 const { slugifyText, ensureUniqueSlug } = require("../../utils/slug");
 const SPEC_TYPES = ["text", "number", "boolean", "list_text", "list_number"];
 
+const normalizeSearchText = (value = "") =>
+  String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+
 const stripLegacySalesFields = (payload) => {
   if (!payload || typeof payload !== "object") return payload;
 
@@ -95,6 +103,7 @@ const SpecSchema = new mongoose.Schema(
 const ItemSchema = new mongoose.Schema(
   {
     nameProduct: { type: String, required: true },
+    nameProductLower: { type: String, default: "", index: true },
     slug: { type: String, unique: true, sparse: true, index: true },
     sku: { type: String, unique: true, sparse: true, index: true, uppercase: true },
     brand: {
@@ -154,6 +163,10 @@ const ItemSchema = new mongoose.Schema(
 
 ItemSchema.pre("save", async function (next) {
   try {
+    if (this.isNew || this.isModified("nameProduct")) {
+      this.nameProductLower = normalizeSearchText(this.nameProduct);
+    }
+
     const shouldRecomputeSlug =
       this.isNew || this.isModified("nameProduct") || this.isModified("brand");
 
@@ -221,8 +234,36 @@ ItemSchema.pre("save", async function (next) {
   }
 });
 
+ItemSchema.pre("findOneAndUpdate", function (next) {
+  const update = this.getUpdate() || {};
+  const directName = update.nameProduct;
+  const setName = update.$set?.nameProduct;
+  const nextName = directName ?? setName;
+
+  if (typeof nextName === "string") {
+    const normalized = normalizeSearchText(nextName);
+    if (!update.$set) update.$set = {};
+    update.$set.nameProductLower = normalized;
+    this.setUpdate(update);
+  }
+
+  next();
+});
+
 ItemSchema.index({ brand: 1 });
 ItemSchema.index({ tags: 1 });
+ItemSchema.index({ visibility: 1, updatedAt: -1 });
+ItemSchema.index({ category: 1, subcategory: 1 });
+ItemSchema.index({ nameProduct: 1 });
+ItemSchema.index({ updatedAt: -1 });
+ItemSchema.index({ nameProductLower: 1, visibility: 1, updatedAt: -1 });
+ItemSchema.index(
+  { nameProduct: "text", slug: "text", description: "text" },
+  {
+    weights: { nameProduct: 8, slug: 6, description: 2 },
+    name: "idx_items_search_text"
+  }
+);
 
 ItemSchema.pre(/^find/, function (next) {
   this.select("-nventas -value.nventas");

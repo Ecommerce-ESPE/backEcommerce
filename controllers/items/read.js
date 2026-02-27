@@ -1,3 +1,19 @@
-const { getItemsAll, getItemsById, getFilteredItems, getFilteredItemsAdmin, getItemRecentlyAdded, getFeaturedItems } = require('./actions');
+const {
+  getItemsAll,
+  getItemsById,
+  getItemsSuggest,
+  getFilteredItems,
+  getFilteredItemsAdmin,
+  getItemRecentlyAdded,
+  getFeaturedItems
+} = require('./actions');
 
-module.exports = { getItemsAll, getItemsById, getFilteredItems, getFilteredItemsAdmin, getItemRecentlyAdded, getFeaturedItems };
+module.exports = {
+  getItemsAll,
+  getItemsById,
+  getItemsSuggest,
+  getFilteredItems,
+  getFilteredItemsAdmin,
+  getItemRecentlyAdded,
+  getFeaturedItems
+};

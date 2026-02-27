@@ -10,6 +10,14 @@ const mongoose = require("mongoose");
 
 const { moment } = require("../../config/components/timeConfig");
 const { slugifyText, ensureUniqueSlug } = require("../../utils/slug");
+const {
+  escapeRegex,
+  normalizeLooseText,
+  sanitizeSearchTerm,
+  clampInteger,
+  buildSearchRegex,
+  computeSuggestionScore,
+} = require("../../utils/itemSearch");
 
 const buildPriceHistoryEntry = (price, changedBy) => ({
   price,
@@ -364,15 +372,7 @@ const normalizeSpecs = (specsInput) => {
   });
 };
 
-const escapeRegExp = (value = "") =>
-  String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-const normalizeLooseText = (value = "") =>
-  String(value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
+const escapeRegExp = escapeRegex;
 
 const resolveCategorySubcategoryFilters = async ({
   categoryQuery,
@@ -384,7 +384,7 @@ const resolveCategorySubcategoryFilters = async ({
   const rawCategory = String(categoryQuery || "").trim();
   if (rawCategory && rawCategory.toLowerCase() !== "ninguna") {
     if (mongoose.Types.ObjectId.isValid(rawCategory)) {
-      resolvedCategoryId = rawCategory;
+      resolvedCategoryId = new mongoose.Types.ObjectId(rawCategory);
     } else {
       let categoryDoc = await categoryModel
         .findOne({
@@ -407,7 +407,7 @@ const resolveCategorySubcategoryFilters = async ({
   const rawSubcategory = String(subcategoryQuery || "").trim();
   if (rawSubcategory && rawSubcategory.toLowerCase() !== "ninguna") {
     if (mongoose.Types.ObjectId.isValid(rawSubcategory)) {
-      resolvedSubcategoryId = rawSubcategory;
+      resolvedSubcategoryId = new mongoose.Types.ObjectId(rawSubcategory);
     } else {
       const normalizedSubcategory = normalizeLooseText(rawSubcategory);
       const categoryDocs = resolvedCategoryId
@@ -478,9 +478,16 @@ const resolveBrandFilter = async (brandQuery) => {
 
   const token = String(brandQuery || "").trim();
   if (!token || token.toLowerCase() === "ninguna") return undefined;
+  const exactRegex = new RegExp(`^${escapeRegExp(token)}$`, "i");
 
   if (mongoose.Types.ObjectId.isValid(token)) {
-    return token;
+    const legacyIds = await findLegacyBrandItemIds(exactRegex, 300);
+    return {
+      $or: [
+        { brand: new mongoose.Types.ObjectId(token) },
+        ...(legacyIds.length > 0 ? [{ _id: { $in: legacyIds } }] : []),
+      ],
+    };
   }
 
   const slugToken = slugifyText(token);
@@ -495,8 +502,233 @@ const resolveBrandFilter = async (brandQuery) => {
     .select("_id")
     .lean();
 
-  if (!brand) return null;
-  return brand._id;
+  const legacyIds = await findLegacyBrandItemIds(exactRegex, 300);
+
+  if (brand?._id) {
+    return {
+      $or: [
+        { brand: brand._id },
+        ...(legacyIds.length > 0 ? [{ _id: { $in: legacyIds } }] : []),
+      ],
+    };
+  }
+
+  if (legacyIds.length > 0) {
+    return { _id: { $in: legacyIds } };
+  }
+
+  return null;
+};
+
+const appendAndClause = (query, clause) => {
+  if (!clause || typeof clause !== "object") return;
+  if (!query.$and) query.$and = [];
+  query.$and.push(clause);
+};
+
+const findLegacyBrandItemIds = async (regex, limit = 300) => {
+  if (!regex) return [];
+
+  const rows = await itemModel.collection
+    .find(
+      {
+        brand: { $type: "string", $regex: regex },
+      },
+      { projection: { _id: 1 } }
+    )
+    .limit(limit)
+    .toArray();
+
+  return rows.map((row) => row._id).filter(Boolean);
+};
+
+const resolveCategorySearchIds = async (regex, limit = 200) => {
+  if (!regex) return { categoryIds: [], subcategoryIds: [] };
+
+  const categories = await categoryModel
+    .find({
+      $or: [{ name: { $regex: regex } }, { "subcategories.name": { $regex: regex } }],
+    })
+    .select("_id name subcategories._id subcategories.name")
+    .limit(limit)
+    .lean();
+
+  const categoryIds = categories.map((cat) => cat._id).filter(Boolean);
+  const subcategoryIds = [];
+
+  categories.forEach((cat) => {
+    (cat.subcategories || []).forEach((sub) => {
+      if (regex.test(String(sub?.name || "")) && sub?._id) {
+        subcategoryIds.push(sub._id);
+      }
+    });
+  });
+
+  return { categoryIds, subcategoryIds };
+};
+
+const buildSearchClause = async (q) => {
+  const term = sanitizeSearchTerm(q, 80);
+  if (!term || term.length < 2) return undefined;
+
+  const containsRegex = buildSearchRegex(term, "contains");
+  if (!containsRegex) return undefined;
+
+  const matchingBrands = await brandModel
+    .find({
+      $or: [
+        { name: { $regex: containsRegex } },
+        { slug: { $regex: containsRegex } },
+      ],
+    })
+    .select("_id")
+    .limit(100)
+    .lean();
+
+  const brandIds = matchingBrands.map((brand) => brand._id);
+  const matchingTags = await tagModel
+    .find({
+      $or: [
+        { name: { $regex: containsRegex } },
+        { slug: { $regex: containsRegex } },
+      ],
+    })
+    .select("_id")
+    .limit(100)
+    .lean();
+  const tagIds = matchingTags.map((tag) => tag._id);
+  const legacyBrandItemIds = await findLegacyBrandItemIds(containsRegex, 300);
+  const { categoryIds, subcategoryIds } = await resolveCategorySearchIds(
+    containsRegex,
+    200
+  );
+  const numericValue = Number(term.replace(",", "."));
+  const hasNumericTerm = Number.isFinite(numericValue);
+
+  return {
+    $or: [
+      { nameProduct: { $regex: containsRegex } },
+      { slug: { $regex: containsRegex } },
+      { description: { $regex: containsRegex } },
+      { "specs.key": { $regex: containsRegex } },
+      { "specs.group": { $regex: containsRegex } },
+      { "specs.unit": { $regex: containsRegex } },
+      { "specs.value": { $regex: containsRegex } },
+      ...(hasNumericTerm
+        ? [
+            {
+              specs: {
+                $elemMatch: {
+                  type: "number",
+                  value: { $gte: numericValue - 1, $lte: numericValue + 1 },
+                },
+              },
+            },
+          ]
+        : []),
+      ...(categoryIds.length > 0 ? [{ category: { $in: categoryIds } }] : []),
+      ...(subcategoryIds.length > 0 ? [{ subcategory: { $in: subcategoryIds } }] : []),
+      ...(tagIds.length > 0 ? [{ tags: { $in: tagIds } }] : []),
+      ...(brandIds.length > 0 ? [{ brand: { $in: brandIds } }] : []),
+      ...(legacyBrandItemIds.length > 0 ? [{ _id: { $in: legacyBrandItemIds } }] : []),
+    ],
+  };
+};
+
+const sanitizeListingItem = (item) => {
+  const normalizedBrand =
+    item?.brand && typeof item.brand === "object"
+      ? {
+          _id: item.brand._id,
+          name: item.brand.name || "",
+          slug: item.brand.slug || "",
+        }
+      : null;
+
+  const normalizedTags = Array.isArray(item?.tags)
+    ? item.tags
+        .map((tag) => {
+          if (tag && typeof tag === "object") {
+            return {
+              _id: tag._id,
+              name: tag.name || "",
+              slug: tag.slug || "",
+            };
+          }
+          return null;
+        })
+        .filter(Boolean)
+    : [];
+
+  return {
+    ...item,
+    brand: normalizedBrand,
+    tags: normalizedTags,
+    category: item?.category?._id ? item.category : null,
+    subcategory: item?.subcategory?._id ? item.subcategory : item?.subcategory || null,
+    createdBy: undefined,
+    nventas: undefined,
+  };
+};
+
+const getSortConfiguration = (sort) => {
+  const sortOptions = {
+    price_asc: { sort: { minOriginalPrice: 1, updatedAt: -1 }, isPriceSort: true },
+    price_desc: { sort: { minOriginalPrice: -1, updatedAt: -1 }, isPriceSort: true },
+    discount_asc: { sort: { "value.discountPrice": 1 }, isPriceSort: false },
+    discount_desc: { sort: { "value.discountPrice": -1 }, isPriceSort: false },
+    rating: { sort: { rating: -1 }, isPriceSort: false },
+    name_asc: { sort: { nameProduct: 1 }, isPriceSort: false },
+    name_desc: { sort: { nameProduct: -1 }, isPriceSort: false },
+    createdAt_desc: { sort: { createdAt: -1 }, isPriceSort: false },
+  };
+
+  return sortOptions[sort] || sortOptions.createdAt_desc;
+};
+
+const findItemsWithPagination = async ({ query, sort, page, limit }) => {
+  const skip = (page - 1) * limit;
+  const sortConfig = getSortConfiguration(sort);
+
+  if (sortConfig.isPriceSort) {
+    const itemsRaw = await itemModel
+      .aggregate([
+        { $match: query },
+        {
+          $addFields: {
+            minOriginalPrice: { $ifNull: [{ $min: "$value.originalPrice" }, null] },
+          },
+        },
+        { $sort: sortConfig.sort },
+        { $skip: skip },
+        { $limit: limit },
+      ])
+      .exec();
+
+    const populated = await itemModel.populate(itemsRaw, [
+      { path: "category", select: "name" },
+      { path: "brand", select: "name slug" },
+      { path: "tags", select: "name slug" },
+    ]);
+
+    const total = await itemModel.countDocuments(query);
+    return { items: populated, total };
+  }
+
+  const [items, total] = await Promise.all([
+    itemModel
+      .find(query)
+      .sort(sortConfig.sort)
+      .skip(skip)
+      .limit(limit)
+      .populate("category", "name")
+      .populate("brand", "name slug")
+      .populate("tags", "name slug")
+      .lean(),
+    itemModel.countDocuments(query),
+  ]);
+
+  return { items, total };
 };
 
 const buildSpecElemMatch = ({ specKey, specType, specValue, specGroup }) => {
@@ -786,9 +1018,119 @@ const getItemsById = async (req, res) => {
 
 /// FILTRO
 
+const getItemsSuggest = async (req, res) => {
+  try {
+    const q = sanitizeSearchTerm(req.query.q, 80);
+    const limit = clampInteger(req.query.limit, 1, 15, 8);
+
+    if (!q || q.length < 2) {
+      return res.json({ ok: true, items: [] });
+    }
+
+    const containsRegex = buildSearchRegex(q, "contains");
+
+    const matchingBrands = await brandModel
+      .find({
+        $or: [
+          { name: { $regex: containsRegex } },
+          { slug: { $regex: containsRegex } },
+        ],
+      })
+      .select("_id")
+      .limit(50)
+      .lean();
+
+    const brandIds = matchingBrands.map((brand) => brand._id);
+    const matchingTags = await tagModel
+      .find({
+        $or: [
+          { name: { $regex: containsRegex } },
+          { slug: { $regex: containsRegex } },
+        ],
+      })
+      .select("_id")
+      .limit(100)
+      .lean();
+    const tagIds = matchingTags.map((tag) => tag._id);
+    const legacyBrandItemIds = await findLegacyBrandItemIds(containsRegex, 300);
+    const { categoryIds, subcategoryIds } = await resolveCategorySearchIds(
+      containsRegex,
+      200
+    );
+
+    const candidates = await itemModel
+      .find({
+        visibility: true,
+        $or: [
+          { nameProduct: { $regex: containsRegex } },
+          { slug: { $regex: containsRegex } },
+          { description: { $regex: containsRegex } },
+          ...(categoryIds.length > 0 ? [{ category: { $in: categoryIds } }] : []),
+          ...(subcategoryIds.length > 0 ? [{ subcategory: { $in: subcategoryIds } }] : []),
+          ...(tagIds.length > 0 ? [{ tags: { $in: tagIds } }] : []),
+          ...(brandIds.length > 0 ? [{ brand: { $in: brandIds } }] : []),
+          ...(legacyBrandItemIds.length > 0 ? [{ _id: { $in: legacyBrandItemIds } }] : []),
+        ],
+      })
+      .select(
+        "_id nameProduct slug banner images category subcategory brand tags description updatedAt"
+      )
+      .populate("category", "name")
+      .populate("brand", "name slug")
+      .sort({ updatedAt: -1 })
+      .limit(Math.min(120, limit * 12))
+      .lean();
+
+    const ranked = candidates
+      .map((item) => ({
+        ...item,
+        _score:
+          computeSuggestionScore(item, q) +
+          (categoryIds.some((id) => String(id) === String(item?.category?._id || item?.category))
+            ? 40
+            : 0) +
+          (subcategoryIds.some((id) => String(id) === String(item?.subcategory)) ? 35 : 0) +
+          (Array.isArray(item?.tags) &&
+          item.tags.some((tagId) => tagIds.some((id) => String(id) === String(tagId)))
+            ? 25
+            : 0),
+      }))
+      .filter((item) => item._score > 0)
+      .sort((a, b) => {
+        if (b._score !== a._score) return b._score - a._score;
+        const aDate = new Date(a.updatedAt || 0).getTime();
+        const bDate = new Date(b.updatedAt || 0).getTime();
+        return bDate - aDate;
+      })
+      .slice(0, limit)
+      .map((item) => ({
+        _id: item._id,
+        nameProduct: item.nameProduct,
+        slug: item.slug,
+        banner: item.banner,
+        images: item.images || [],
+        category: item.category?._id
+          ? { _id: item.category._id, name: item.category.name, slug: null }
+          : item.category || null,
+        subcategory: item.subcategory || null,
+        brand: item.brand || null,
+      }));
+
+    return res.json({ ok: true, items: ranked });
+  } catch (error) {
+    console.error("Error en sugerencias de productos:", error);
+    return res.status(500).json({
+      ok: false,
+      items: [],
+      message: "Error obteniendo sugerencias",
+    });
+  }
+};
+
 const getFilteredItems = async (req, res) => {
   try {
     const {
+      q,
       category,
       brand,
       brandId,
@@ -799,17 +1141,14 @@ const getFilteredItems = async (req, res) => {
       specType,
       specValue,
       specGroup,
-
       sort = "createdAt_desc",
-
       page = 1,
-
       limit = 12,
     } = req.query;
 
     const query = { visibility: true };
-
-    // 1. Validar si los valores son ObjectIds antes de agregarlos al query
+    const pageNumber = clampInteger(page, 1, 100000, 1);
+    const limitNumber = clampInteger(limit, 1, 100, 12);
 
     const resolvedCategoryFilters = await resolveCategorySubcategoryFilters({
       categoryQuery: category,
@@ -820,129 +1159,59 @@ const getFilteredItems = async (req, res) => {
         code: "200",
         ok: true,
         total: 0,
-        page: parseInt(page),
+        page: pageNumber,
         totalPages: 0,
         items: [],
       });
     }
-    if (resolvedCategoryFilters?.category) {
-      query.category = resolvedCategoryFilters.category;
-    }
-    if (resolvedCategoryFilters?.subcategory) {
-      query.subcategory = resolvedCategoryFilters.subcategory;
-    }
+
+    if (resolvedCategoryFilters?.category) query.category = resolvedCategoryFilters.category;
+    if (resolvedCategoryFilters?.subcategory) query.subcategory = resolvedCategoryFilters.subcategory;
 
     const brandFilter = await resolveBrandFilter(brand || brandId || marca);
-    if (brandFilter === null) {
+    if ((brand || brandId || marca) && brandFilter === null) {
       return res.json({
         code: "200",
         ok: true,
         total: 0,
-        page: parseInt(page),
+        page: pageNumber,
         totalPages: 0,
         items: [],
       });
     }
-    if (brandFilter) {
-      query.brand = brandFilter;
-    }
+    if (brandFilter) appendAndClause(query, brandFilter);
 
     const tagFilter = await resolveTagsFilter(tags);
-    if (tagFilter) {
-      query.tags = tagFilter;
-    }
+    if (tagFilter) query.tags = tagFilter;
 
-    const specFilter = buildSpecElemMatch({
-      specKey,
-      specType,
-      specValue,
-      specGroup,
+    const specFilter = buildSpecElemMatch({ specKey, specType, specValue, specGroup });
+    if (specFilter) query.specs = { $elemMatch: specFilter };
+
+    const searchClause = await buildSearchClause(q);
+    if (searchClause) appendAndClause(query, searchClause);
+
+    const { items, total } = await findItemsWithPagination({
+      query,
+      sort,
+      page: pageNumber,
+      limit: limitNumber,
     });
-    if (specFilter) {
-      query.specs = { $elemMatch: specFilter };
-    }
 
-    // Ordenamiento
+    const safeItems = items.map(sanitizeListingItem);
 
-    const sortOptions = {
-      price_asc: { "value.originalPrice": 1 },
-
-      price_desc: { "value.originalPrice": -1 },
-
-      //price_asc: { "value.price": 1 },
-
-      //price_desc: { "value.price": -1 },
-
-      discount_asc: { "value.discountPrice": 1 },
-
-      discount_desc: { "value.discountPrice": -1 },
-
-      rating: { rating: -1 },
-
-      name_asc: { nameProduct: 1 },
-
-      name_desc: { nameProduct: -1 },
-
-      createdAt_desc: { createdAt: -1 },
-    };
-
-    const sortQuery = sortOptions[sort] || { createdAt: -1 };
-
-    // Paginación
-
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    // 2. Filtrar documentos con categorías/subcategorías inválidas
-
-    const [items, total] = await Promise.all([
-      itemModel
-
-        .find(query)
-
-        .sort(sortQuery)
-
-        .skip(skip)
-
-        .limit(parseInt(limit))
-
-        .populate("category", "name")
-
-        .lean(),
-
-      itemModel.countDocuments(query),
-    ]);
-
-    // 3. Limpieza manual de referencias rotas (opcional)
-
-    const safeItems = items.map((item) => ({
-      ...item,
-
-      category: item.category?._id ? item.category : null,
-
-      subcategory: item.subcategory?._id ? item.subcategory : null,
-    }));
-
-    res.json({
+    return res.json({
       code: "200",
-
       ok: true,
-
       total,
-
-      page: parseInt(page),
-
-      totalPages: Math.ceil(total / limit),
-
+      page: pageNumber,
+      totalPages: Math.ceil(total / limitNumber),
       items: safeItems,
     });
   } catch (error) {
     console.error(error);
-
-    res.status(500).json({
+    return res.status(500).json({
       code: "500",
-
       ok: false,
-
       error: "Error al obtener productos",
     });
   }
@@ -953,6 +1222,7 @@ const getFilteredItems = async (req, res) => {
 const getFilteredItemsAdmin = async (req, res) => {
   try {
     const {
+      q,
       category,
       brand,
       brandId,
@@ -963,25 +1233,19 @@ const getFilteredItemsAdmin = async (req, res) => {
       specType,
       specValue,
       specGroup,
-
       sort = "createdAt_desc",
-
       page = 1,
-
       limit = 12,
-
-      showHidden = "true", // por defecto mostrar ocultos
+      showHidden = "true",
     } = req.query;
 
-    // Mostrar todos los productos (visibles y ocultos) por defecto
-
     const query = {};
+    const pageNumber = clampInteger(page, 1, 100000, 1);
+    const limitNumber = clampInteger(limit, 1, 100, 12);
 
     if (showHidden !== "true") {
       query.visibility = true;
     }
-
-    // 1. Validar si los valores son ObjectIds antes de agregarlos al query
 
     const resolvedCategoryFilters = await resolveCategorySubcategoryFilters({
       categoryQuery: category,
@@ -992,125 +1256,59 @@ const getFilteredItemsAdmin = async (req, res) => {
         code: "200",
         ok: true,
         total: 0,
-        page: parseInt(page),
+        page: pageNumber,
         totalPages: 0,
         items: [],
       });
     }
-    if (resolvedCategoryFilters?.category) {
-      query.category = resolvedCategoryFilters.category;
-    }
-    if (resolvedCategoryFilters?.subcategory) {
-      query.subcategory = resolvedCategoryFilters.subcategory;
-    }
+
+    if (resolvedCategoryFilters?.category) query.category = resolvedCategoryFilters.category;
+    if (resolvedCategoryFilters?.subcategory) query.subcategory = resolvedCategoryFilters.subcategory;
 
     const brandFilter = await resolveBrandFilter(brand || brandId || marca);
-    if (brandFilter === null) {
+    if ((brand || brandId || marca) && brandFilter === null) {
       return res.json({
         code: "200",
         ok: true,
         total: 0,
-        page: parseInt(page),
+        page: pageNumber,
         totalPages: 0,
         items: [],
       });
     }
-    if (brandFilter) {
-      query.brand = brandFilter;
-    }
+    if (brandFilter) appendAndClause(query, brandFilter);
 
     const tagFilter = await resolveTagsFilter(tags);
-    if (tagFilter) {
-      query.tags = tagFilter;
-    }
+    if (tagFilter) query.tags = tagFilter;
 
-    const specFilter = buildSpecElemMatch({
-      specKey,
-      specType,
-      specValue,
-      specGroup,
+    const specFilter = buildSpecElemMatch({ specKey, specType, specValue, specGroup });
+    if (specFilter) query.specs = { $elemMatch: specFilter };
+
+    const searchClause = await buildSearchClause(q);
+    if (searchClause) appendAndClause(query, searchClause);
+
+    const { items, total } = await findItemsWithPagination({
+      query,
+      sort,
+      page: pageNumber,
+      limit: limitNumber,
     });
-    if (specFilter) {
-      query.specs = { $elemMatch: specFilter };
-    }
 
-    // Ordenamiento
+    const safeItems = items.map(sanitizeListingItem);
 
-    const sortOptions = {
-      price_asc: { "value.originalPrice": 1 },
-
-      price_desc: { "value.originalPrice": -1 },
-
-      discount_asc: { "value.discountPrice": 1 },
-
-      discount_desc: { "value.discountPrice": -1 },
-
-      rating: { rating: -1 },
-
-      name_asc: { nameProduct: 1 },
-
-      name_desc: { nameProduct: -1 },
-
-      createdAt_desc: { createdAt: -1 },
-    };
-
-    const sortQuery = sortOptions[sort] || { createdAt: -1 };
-
-    // Paginación
-
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    // 2. Filtrar documentos con categorías/subcategorías inválidas
-
-    const [items, total] = await Promise.all([
-      itemModel
-
-        .find(query)
-
-        .sort(sortQuery)
-
-        .skip(skip)
-
-        .limit(parseInt(limit))
-
-        .populate("category", "name")
-
-        .lean(),
-
-      itemModel.countDocuments(query),
-    ]);
-
-    // 3. Limpieza manual de referencias rotas (opcional)
-
-    const safeItems = items.map((item) => ({
-      ...item,
-
-      category: item.category?._id ? item.category : null,
-
-      subcategory: item.subcategory?._id ? item.subcategory : null,
-    }));
-
-    res.json({
+    return res.json({
       code: "200",
-
       ok: true,
-
       total,
-
-      page: parseInt(page),
-
-      totalPages: Math.ceil(total / limit),
-
+      page: pageNumber,
+      totalPages: Math.ceil(total / limitNumber),
       items: safeItems,
     });
   } catch (error) {
     console.error(error);
-
-    res.status(500).json({
+    return res.status(500).json({
       code: "500",
-
       ok: false,
-
       error: "Error al obtener productos",
     });
   }
@@ -1705,6 +1903,7 @@ module.exports = {
   getItemsAll,
 
   getItemsById,
+  getItemsSuggest,
 
   getFilteredItems,
 
@@ -1720,3 +1919,5 @@ module.exports = {
 
   getFeaturedItems,
 };
+
+

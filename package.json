@@ -8,6 +8,7 @@
     "start:Dev": "nodemon index.js",
     "start": "node index.js",
     "analytics:rebuild": "node scripts/rebuild-analytics-history.js",
+    "search:backfill-name-lower": "node scripts/backfill-item-name-lower.js",
     "cleanup:testdata": "node scripts/cleanup-test-runtime-data.js --confirm",
     "migrate:remove-nventas": "node scripts/remove-item-nventas.js"
   },
