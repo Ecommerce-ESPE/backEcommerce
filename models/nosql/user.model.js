@@ -96,6 +96,16 @@ const UserSchema = new mongoose.Schema(
       default: "",
       required: false
     },
+    sessionVersion: {
+      type: Number,
+      default: 0
+    },
+    wishlist: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "items"
+      }
+    ]
   },
   {
     timestamps: true,

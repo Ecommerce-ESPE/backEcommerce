@@ -65,7 +65,7 @@ app.use("/api", require('./routes/index'));
 
 
 
-server.listen(PORT, () => {
+server.listen(PORT, "0.0.0.0", () => {
   connectDB();
   console.log(`Servidor corriendo en el puerto ${PORT}`);
   console.log(`Zona horaria: ${process.env.TZ}`);

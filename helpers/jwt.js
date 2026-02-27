@@ -1,11 +1,12 @@
 const jwt = require('jsonwebtoken');
 
-const generarJWT = ( uid ) => {
+const generarJWT = ( uid, sessionVersion = 0 ) => {
 
     return new Promise( ( resolve, reject ) => {
 
         const payload = {
             uid,
+            sv: Number(sessionVersion || 0),
         };
     
         jwt.sign( payload, process.env.JWT_SECRET, {

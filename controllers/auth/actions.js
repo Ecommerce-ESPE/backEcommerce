@@ -37,8 +37,17 @@ const login = async(req, res = response) => {
             });
         }
 
-        // Generar el TOKEN - JWT
-        const token = await generarJWT(usuarioDB.id);
+        // Sesion unica: invalida tokens previos al incrementar version
+        const usuarioSesion = await userModel.findByIdAndUpdate(
+            usuarioDB._id,
+            { $inc: { sessionVersion: 1 } },
+            { new: true }
+        );
+
+        const token = await generarJWT(
+            usuarioSesion.id,
+            usuarioSesion.sessionVersion
+        );
 
         // Registrar login exitoso
         //await registrarAuditoria({
@@ -53,13 +62,13 @@ const login = async(req, res = response) => {
             ok: true,
             token,
             usuario: {
-                uid: usuarioDB._id,
-                nombre: usuarioDB.name,
-                email: usuarioDB.email,
-                rol: usuarioDB.role,
-                perfil: usuarioDB.profileUrl || null,
-                config: usuarioDB.config || {},
-                wallet: usuarioDB.credits || 0
+                uid: usuarioSesion._id,
+                nombre: usuarioSesion.name,
+                email: usuarioSesion.email,
+                rol: usuarioSesion.role,
+                perfil: usuarioSesion.profileUrl || null,
+                config: usuarioSesion.config || {},
+                wallet: usuarioSesion.credits || 0
             }
         });
 
@@ -86,8 +95,6 @@ const renewToken = async(req, res = response) => {
 
     try {
         // Generar nuevo token
-        const token = await generarJWT(uid);
-
         // Obtener el usuario
         const usuario = await userModel.findById(uid);
 
@@ -99,28 +106,25 @@ const renewToken = async(req, res = response) => {
             });
         }
 
+        const token = await generarJWT(uid, usuario.sessionVersion || 0);
+
         res.json({
             ok: true,
             token,
             usuario: {
                 uid: usuario._id,
-                nombre: usuario.nombre,
+                nombre: usuario.name,
                 email: usuario.email,
-                rol: usuario.rol
+                rol: usuario.role,
+                perfil: usuario.profileUrl || null,
+                config: usuario.config || {},
+                wallet: usuario.credits || 0
             }
         });
 
     } catch (error) {
         console.error(error);
-        
-        await registrarAuditoria({
-            usuarioId: uid,
-            accion: 'ERROR_RENOVACION_TOKEN',
-            descripcion: `Error al renovar token: ${error.message}`,
-            entidad: 'Auth',
-            req
-        });
-        
+
         res.status(500).json({
             ok: false,
             msg: 'Error al renovar el token'
@@ -162,7 +166,7 @@ const register = async(req, res = response) =>{
             await usuario.save();
     
             // 6. Generar token JWT
-            const token = await generarJWT(usuario.id);
+            const token = await generarJWT(usuario.id, usuario.sessionVersion || 0);
     
             res.json({
                 ok: true,

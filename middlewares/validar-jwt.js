@@ -13,7 +13,7 @@ const validarJWT = async (req, res, next) => {
     }
 
     try {
-        const { uid } = jwt.verify(token, process.env.JWT_SECRET);
+        const { uid, sv } = jwt.verify(token, process.env.JWT_SECRET);
         req.uid = uid;
 
         // Buscar al usuario y añadir su rol
@@ -22,7 +22,18 @@ const validarJWT = async (req, res, next) => {
             return res.status(404).json({ ok: false, msg: 'Usuario no encontrado' });
         }
 
-        req.rol = usuario.rol; // Guarda el rol en la request
+        const tokenSessionVersion = Number(sv || 0);
+        const currentSessionVersion = Number(usuario.sessionVersion || 0);
+        if (tokenSessionVersion !== currentSessionVersion) {
+            return res.status(401).json({
+                ok: false,
+                msg: 'Sesión invalidada por nuevo inicio de sesión'
+            });
+        }
+
+        req.rol = usuario.role || usuario.rol; // Compatibilidad
+        req.user = usuario;
+        req.sessionVersion = currentSessionVersion;
 
         next();
     } catch (error) {

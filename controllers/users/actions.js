@@ -47,7 +47,7 @@ const crearUsuario = async(req, res = response) => {
         await usuario.save();
 
         // 6. Generar token JWT
-        const token = await generarJWT(usuario.id);
+        const token = await generarJWT(usuario.id, usuario.sessionVersion || 0);
 
         res.json({
             ok: true,
