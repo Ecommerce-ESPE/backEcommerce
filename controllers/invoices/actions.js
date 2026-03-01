@@ -139,16 +139,23 @@ const generateInvoicePDF = async (req, res) => {
 
         if (logoUrl.startsWith("http")) {
           // Descargar imagen temporal para logo
-          const response = await axios.get(logoUrl, {
-            responseType: "arraybuffer",
-          });
+          const extension = path.extname(logoUrl.split("?")[0]).toLowerCase();
+          const supportedRemoteFormats = new Set([".png", ".jpg", ".jpeg"]);
+          if (!supportedRemoteFormats.has(extension)) {
+            throw new Error("Formato de logo remoto no soportado");
+          }
+          const response = await fetch(logoUrl);
+          if (!response.ok) {
+            throw new Error(`No se pudo descargar el logo (${response.status})`);
+          }
+          const responseBuffer = Buffer.from(await response.arrayBuffer());
           logoPath = path.join(
             __dirname,
             "..",
             "temp",
-            `logo_${invoice.invoiceNumber}.png`
+            `logo_${invoice.invoiceNumber}${extension}`
           );
-          fs.writeFileSync(logoPath, response.data);
+          fs.writeFileSync(logoPath, responseBuffer);
           doc.image(logoPath, 40, 40, { width: 100 });
           // Luego borramos la imagen temporal después de finalizar el PDF
         } else {
@@ -463,11 +470,14 @@ const generateInvoicePDF = async (req, res) => {
         invoice.companyDetails.logoUrl &&
         invoice.companyDetails.logoUrl.startsWith("http")
       ) {
+        const extension = path
+          .extname(invoice.companyDetails.logoUrl.split("?")[0])
+          .toLowerCase();
         const logoTempPath = path.join(
           __dirname,
           "..",
           "temp",
-          `logo_${invoice.invoiceNumber}.png`
+          `logo_${invoice.invoiceNumber}${extension || ".png"}`
         );
         if (fs.existsSync(logoTempPath)) fs.unlinkSync(logoTempPath);
       }

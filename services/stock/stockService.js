@@ -1,21 +1,31 @@
 const { itemModel } = require("../../models/index");
 
 const updateStock = async (items, session) => {
-  const updates = items.map((item) => ({
-    updateOne: {
-      filter: {
+  for (const item of items) {
+    const result = await itemModel.updateOne(
+      {
         _id: item.productId,
-        "value._id": item.variantId,
+        value: {
+          $elemMatch: {
+            _id: item.variantId,
+            stock: { $gte: item.quantity },
+          },
+        },
       },
-      update: {
+      {
         $inc: {
           "value.$.stock": -item.quantity,
         },
       },
-    },
-  }));
+      { session },
+    );
 
-  await itemModel.bulkWrite(updates, { session });
+    if (result.modifiedCount !== 1) {
+      throw new Error(
+        `Stock insuficiente o variante no disponible para ${item.name || item.productId}`,
+      );
+    }
+  }
 };
 
 module.exports = {

@@ -2,7 +2,7 @@ const validateTransactionData = (data) => {
   const errors = [];
 
   if (!data.customer || typeof data.customer !== "object") {
-    errors.push("Falta informaciÃ³n del cliente.");
+    errors.push("Falta informacion del cliente.");
   } else {
     if (!data.customer.name || typeof data.customer.name !== "string") {
       errors.push("Nombre del cliente es requerido.");
@@ -13,7 +13,7 @@ const validateTransactionData = (data) => {
     }
 
     if (!data.customer.phone || typeof data.customer.phone !== "string") {
-      errors.push("TelÃ©fono del cliente es requerido.");
+      errors.push("Telefono del cliente es requerido.");
     }
 
     if (!data.customer.userId || typeof data.customer.userId !== "string") {
@@ -22,40 +22,40 @@ const validateTransactionData = (data) => {
   }
 
   if (!data.order || typeof data.order !== "object") {
-    errors.push("Falta la informaciÃ³n del pedido.");
+    errors.push("Falta la informacion del pedido.");
   } else {
     if (!Array.isArray(data.order.items) || data.order.items.length === 0) {
       errors.push("Debe incluir al menos un producto en el pedido.");
     } else {
       data.order.items.forEach((item, index) => {
         if (!item.productId || typeof item.productId !== "string") {
-          errors.push(`El item ${index + 1} no tiene productId vÃ¡lido.`);
+          errors.push(`El item ${index + 1} no tiene productId valido.`);
         }
 
         if (!item.variantId || typeof item.variantId !== "string") {
-          errors.push(`El item ${index + 1} no tiene variantId vÃ¡lido.`);
+          errors.push(`El item ${index + 1} no tiene variantId valido.`);
         }
 
         if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
-          errors.push(`El item ${index + 1} tiene una cantidad invÃ¡lida.`);
+          errors.push(`El item ${index + 1} tiene una cantidad invalida.`);
         }
       });
     }
 
     if (!data.order.shipping || typeof data.order.shipping !== "object") {
-      errors.push("Falta la informaciÃ³n de envÃ­o.");
+      errors.push("Falta la informacion de envio.");
     } else {
       if (
         !data.order.shipping.methodId ||
         typeof data.order.shipping.methodId !== "string"
       ) {
-        errors.push("ID del mÃ©todo de envÃ­o es requerido.");
+        errors.push("ID del metodo de envio es requerido.");
       }
 
       const addr = data.order.shipping.address;
 
       if (!addr || typeof addr !== "object") {
-        errors.push("DirecciÃ³n de envÃ­o invÃ¡lida.");
+        errors.push("Direccion de envio invalida.");
       } else {
         const requiredAddressFields = [
           "provincia",
@@ -68,7 +68,7 @@ const validateTransactionData = (data) => {
 
         requiredAddressFields.forEach((field) => {
           if (!addr[field] || typeof addr[field] !== "string") {
-            errors.push(`Campo de direcciÃ³n '${field}' es requerido.`);
+            errors.push(`Campo de direccion '${field}' es requerido.`);
           }
         });
       }
@@ -77,22 +77,22 @@ const validateTransactionData = (data) => {
         typeof data.order.shipping.cost !== "number" ||
         data.order.shipping.cost < 0
       ) {
-        errors.push("El costo de envÃ­o debe ser un nÃºmero mayor o igual a 0.");
+        errors.push("El costo de envio debe ser un numero mayor o igual a 0.");
       }
     }
   }
 
   if (!data.payment || typeof data.payment !== "object") {
-    errors.push("Falta la informaciÃ³n de pago.");
+    errors.push("Falta la informacion de pago.");
   } else {
     const validMethods = ["credit-card", "credits", "transfer", "paypal"];
     const method = data.payment.method;
 
     if (!method || typeof method !== "string") {
-      errors.push("El mÃ©todo de pago es requerido.");
+      errors.push("El metodo de pago es requerido.");
     } else if (!validMethods.includes(method)) {
       errors.push(
-        `MÃ©todo de pago '${method}' no es vÃ¡lido. MÃ©todos aceptados: ${validMethods.join(", ")}`,
+        `Metodo de pago '${method}' no es valido. Metodos aceptados: ${validMethods.join(", ")}`,
       );
     }
 
@@ -108,23 +108,26 @@ const validateTransactionData = (data) => {
               (field) => {
                 if (!details[field] || typeof details[field] !== "string") {
                   errors.push(
-                    `Para tarjeta de crÃ©dito, el campo '${field}' es requerido.`,
+                    `Para tarjeta de credito, el campo '${field}' es requerido.`,
                   );
                 }
               },
             );
             break;
           case "credits":
-            if (!details.userId || typeof details.userId !== "string") {
+            if (
+              details.source !== undefined &&
+              typeof details.source !== "string"
+            ) {
               errors.push(
-                "Para pago con crÃ©ditos, el ID de usuario es requerido.",
+                "Para pago con creditos, el campo 'source' debe ser texto si se envia.",
               );
             }
             break;
           case "transfer":
             if (!details.reference || typeof details.reference !== "string") {
               errors.push(
-                "Para transferencia, el nÃºmero de referencia es requerido.",
+                "Para transferencia, el numero de referencia es requerido.",
               );
             }
             break;
@@ -134,8 +137,10 @@ const validateTransactionData = (data) => {
               typeof details.email !== "string" ||
               !details.email.includes("@")
             ) {
-              errors.push("Para PayPal, se requiere un email vÃ¡lido.");
+              errors.push("Para PayPal, se requiere un email valido.");
             }
+            break;
+          default:
             break;
         }
       }

@@ -85,6 +85,28 @@ const createPosOrder = async (req, res) => {
       shipping: 0
     });
 
+    if (process.env.DEBUG_PRICING === "true") {
+      console.info("[pricing.trace:checkout-pos]", {
+        priceIncludesTax: Boolean(req.tenantConfig?.tax?.priceIncludesTax),
+        ivaRateDefault: Number(req.tenantConfig?.tax?.iva?.defaultRate ?? 0.15),
+        items: itemsWithPrices.map((item, index) => ({
+          productId: String(item.productId),
+          variantId: String(item.variantId),
+          originalPrice: item.originalPrice,
+          clientPrice: item.clientPrice,
+          finalUnitPrice: item.price,
+          pricingSource: item.pricingSource,
+          promoPercentageApplied: item.promoPercentageApplied,
+          itemDiscount: item.itemDiscount,
+          ivaRateApplied: itemsForTax[index]?.ivaRateApplied,
+          lineSubtotal: taxBreakdown.items[index]?.subtotal,
+          lineTax: taxBreakdown.items[index]?.taxAmount,
+          lineTotal: taxBreakdown.items[index]?.totalLine,
+        })),
+        totals: taxBreakdown.totals,
+      });
+    }
+
     const subtotal = taxBreakdown.totals.subtotal;
     const tax = taxBreakdown.totals.totalTax;
     const total = taxBreakdown.totals.total;

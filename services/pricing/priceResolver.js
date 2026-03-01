@@ -110,6 +110,12 @@ const resolveUnitPrice = (product, variant, options = {}) => {
 
   const now = options.now || new Date();
   const promoIndex = options.promoIndex;
+  const productPromo = product.promotion || {};
+  const productPromoWindowValid =
+    productPromo.startDate &&
+    productPromo.endDate &&
+    now >= new Date(productPromo.startDate) &&
+    now <= new Date(productPromo.endDate);
 
   const globalPromo = resolveGlobalPromo(product, promoIndex);
   if (globalPromo && isPromoActive(globalPromo, now)) {
@@ -119,24 +125,41 @@ const resolveUnitPrice = (product, variant, options = {}) => {
       pricingSource: "globalPromo",
       promoPercentageApplied: percentage,
       promoId: globalPromo._id || null,
+      pricingTrace: {
+        originalPrice,
+        variantDiscountPrice: variant.discountPrice ?? null,
+        productPromoActive: productPromo.active === true,
+        productPromoPercentage: productPromo.percentage ?? null,
+        productPromoWindowValid: Boolean(productPromoWindowValid),
+        globalPromoMatched: true,
+        globalPromoActive: true,
+        globalPromoPercentage: percentage,
+      },
     };
   }
 
-  const productPromo = product.promotion || {};
   if (
     productPromo.active === true &&
     typeof productPromo.percentage === "number" &&
     productPromo.startDate &&
     productPromo.endDate
   ) {
-    const start = new Date(productPromo.startDate);
-    const end = new Date(productPromo.endDate);
-    if (now >= start && now <= end) {
+    if (productPromoWindowValid) {
       return {
         unitPrice: calcPercentagePrice(originalPrice, productPromo.percentage),
         pricingSource: "productPromo",
         promoPercentageApplied: productPromo.percentage,
         promoId: null,
+        pricingTrace: {
+          originalPrice,
+          variantDiscountPrice: variant.discountPrice ?? null,
+          productPromoActive: true,
+          productPromoPercentage: productPromo.percentage,
+          productPromoWindowValid: true,
+          globalPromoMatched: Boolean(globalPromo),
+          globalPromoActive: false,
+          globalPromoPercentage: globalPromo?.promotionPercentage ?? null,
+        },
       };
     }
   }
@@ -155,6 +178,16 @@ const resolveUnitPrice = (product, variant, options = {}) => {
       pricingSource: "storedDiscount",
       promoPercentageApplied: percentage,
       promoId: null,
+      pricingTrace: {
+        originalPrice,
+        variantDiscountPrice: variant.discountPrice,
+        productPromoActive: productPromo.active === true,
+        productPromoPercentage: productPromo.percentage ?? null,
+        productPromoWindowValid: Boolean(productPromoWindowValid),
+        globalPromoMatched: Boolean(globalPromo),
+        globalPromoActive: Boolean(globalPromo && isPromoActive(globalPromo, now)),
+        globalPromoPercentage: globalPromo?.promotionPercentage ?? null,
+      },
     };
   }
 
@@ -163,6 +196,16 @@ const resolveUnitPrice = (product, variant, options = {}) => {
     pricingSource: "none",
     promoPercentageApplied: 0,
     promoId: null,
+    pricingTrace: {
+      originalPrice,
+      variantDiscountPrice: variant.discountPrice ?? null,
+      productPromoActive: productPromo.active === true,
+      productPromoPercentage: productPromo.percentage ?? null,
+      productPromoWindowValid: Boolean(productPromoWindowValid),
+      globalPromoMatched: Boolean(globalPromo),
+      globalPromoActive: Boolean(globalPromo && isPromoActive(globalPromo, now)),
+      globalPromoPercentage: globalPromo?.promotionPercentage ?? null,
+    },
   };
 };
 

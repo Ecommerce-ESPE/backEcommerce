@@ -10,6 +10,8 @@ const {
 } = require("./priceResolver");
 const { processDiscount } = require("../discounts/discountService");
 
+const debugPricingEnabled = () => process.env.DEBUG_PRICING === "true";
+
 const validateAndPriceItems = async (items, discountCode, session) => {
   if (!Array.isArray(items)) {
     throw new Error("Formato de items invÃ¡lido: debe ser un array");
@@ -87,6 +89,7 @@ const validateAndPriceItems = async (items, discountCode, session) => {
       pricingSource,
       promoPercentageApplied,
       promoId,
+      pricingTrace,
     } = resolveUnitPrice(product, variant, { promoIndex, now });
 
     const clientPrice =
@@ -106,6 +109,21 @@ const validateAndPriceItems = async (items, discountCode, session) => {
       });
     }
 
+    if (debugPricingEnabled()) {
+      console.info("[pricing.trace:item]", {
+        index,
+        productId: String(product._id),
+        variantId: String(variant._id),
+        variantName: variant.size || null,
+        clientPrice,
+        resolvedUnitPrice: unitPrice,
+        pricingSource,
+        promoPercentageApplied,
+        promoId,
+        ...pricingTrace,
+      });
+    }
+
     return {
       productId: product._id,
       variantId: variant._id,
@@ -120,6 +138,7 @@ const validateAndPriceItems = async (items, discountCode, session) => {
       image: product.banner || null,
       stock: variant.stock,
       clientPrice,
+      pricingTrace,
     };
   });
 
@@ -164,6 +183,7 @@ const validateAndPriceItems = async (items, discountCode, session) => {
       promoPercentageApplied: item.promoPercentageApplied,
       promoId: item.promoId,
       clientPrice: item.clientPrice,
+      pricingTrace: item.pricingTrace,
       itemDiscount:
         discountResult.valid && discountResult.type === "percentage"
           ? discountResult.percentage
@@ -186,6 +206,30 @@ const validateAndPriceItems = async (items, discountCode, session) => {
       .plus(new Decimal(item.price).times(item.quantity))
       .toNumber();
   }, 0);
+
+  if (debugPricingEnabled()) {
+    console.info("[pricing.trace:summary]", {
+      originalSubtotal: parseFloat(tempSubtotal.toFixed(2)),
+      discountedSubtotal: parseFloat(discountedSubtotal.toFixed(2)),
+      discountCode: discountCode || null,
+      discountType: discountResult.type || null,
+      discountPercentage:
+        discountResult.valid && discountResult.type === "percentage"
+          ? discountResult.percentage
+          : 0,
+      discountAmount: parseFloat(discountAmount.toFixed(2)),
+      items: itemsWithPrices.map((item) => ({
+        productId: String(item.productId),
+        variantId: String(item.variantId),
+        originalPrice: item.originalPrice,
+        clientPrice: item.clientPrice,
+        resolvedPrice: item.price,
+        pricingSource: item.pricingSource,
+        promoPercentageApplied: item.promoPercentageApplied,
+        itemDiscount: item.itemDiscount,
+      })),
+    });
+  }
 
   return {
     itemsWithPrices,

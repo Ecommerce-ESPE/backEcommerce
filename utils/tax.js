@@ -1,4 +1,5 @@
 const Decimal = require("decimal.js");
+const { getPriceBreakdown } = require("./pricingBreakdown");
 
 const getIvaRateForDate = (config, dateISO) => {
   const defaultRate = Number(config?.tax?.iva?.defaultRate ?? 0.15);
@@ -60,20 +61,16 @@ const computeTaxSnapshot = ({ items, dateISO, config, shipping = 0 }) => {
       };
     }
 
-    let lineSubtotal = unitPrice.times(qty);
-    let lineTax = new Decimal(0);
+    const breakdown = getPriceBreakdown({
+      price: unitPrice.toNumber(),
+      quantity: qty.toNumber(),
+      taxRate: rate.toNumber(),
+      priceIncludesTax,
+    });
 
-    if (priceIncludesTax) {
-      const divisor = new Decimal(1).plus(rate);
-      lineSubtotal = unitPrice.div(divisor).times(qty);
-      lineTax = unitPrice.times(qty).minus(lineSubtotal);
-    } else {
-      lineTax = lineSubtotal.times(rate);
-    }
-
-    lineSubtotal = lineSubtotal.toDecimalPlaces(2);
-    lineTax = lineTax.toDecimalPlaces(2);
-    const lineTotal = lineSubtotal.plus(lineTax).toDecimalPlaces(2);
+    const lineSubtotal = new Decimal(breakdown.subtotal);
+    const lineTax = new Decimal(breakdown.tax);
+    const lineTotal = new Decimal(breakdown.total);
 
     subtotal = subtotal.plus(lineSubtotal);
     totalTax = totalTax.plus(lineTax);

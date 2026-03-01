@@ -9,6 +9,10 @@ const {
 const mongoose = require("mongoose");
 
 const { moment } = require("../../config/components/timeConfig");
+const {
+  buildPromoIndex,
+  resolveUnitPrice,
+} = require("../../services/pricing/priceResolver");
 const { slugifyText, ensureUniqueSlug } = require("../../utils/slug");
 const {
   escapeRegex,
@@ -162,6 +166,85 @@ const applyPromotionToItem = (item, percentage) => {
       percentage: safePercentage,
     },
   };
+};
+
+const getActivePricingPromos = async (now = new Date()) =>
+  bannerPromotionModel
+    .find({
+      tipo: "promo",
+      active: true,
+      startDate: { $lte: now },
+      endDate: { $gte: now },
+    })
+    .lean();
+
+const applyResolvedPricingToItem = (item, promoIndex, now = new Date()) => {
+  if (!item) return item;
+
+  const itemObj = item?.toObject ? item.toObject() : { ...(item || {}) };
+  const categoryId = itemObj.category?._id || itemObj.category || null;
+  const subcategoryId = itemObj.subcategory?._id || itemObj.subcategory || null;
+
+  const pricingProduct = {
+    ...itemObj,
+    category: categoryId,
+    subcategory: subcategoryId,
+  };
+
+  const variants = Array.isArray(itemObj.value) ? itemObj.value : [];
+  const pricedVariants = variants.map((variant) => {
+    const resolved = resolveUnitPrice(pricingProduct, variant, { promoIndex, now });
+    const hasDiscount =
+      typeof variant.originalPrice === "number" &&
+      resolved.unitPrice < variant.originalPrice;
+
+    return {
+      ...variant,
+      discountPrice: hasDiscount ? resolved.unitPrice : null,
+      pricingSource: resolved.pricingSource,
+      promoPercentageApplied: resolved.promoPercentageApplied,
+      promoId: resolved.promoId,
+    };
+  });
+
+  const originals = pricedVariants
+    .map((variant) => variant.originalPrice)
+    .filter((value) => typeof value === "number");
+  const finals = pricedVariants
+    .map((variant) =>
+      typeof variant.discountPrice === "number"
+        ? variant.discountPrice
+        : variant.originalPrice,
+    )
+    .filter((value) => typeof value === "number");
+  const discountedVariants = pricedVariants.filter(
+    (variant) => typeof variant.discountPrice === "number",
+  );
+
+  const originalMin = originals.length > 0 ? Math.min(...originals) : null;
+  const finalMin = finals.length > 0 ? Math.min(...finals) : null;
+  const maxPercentage = pricedVariants.reduce(
+    (max, variant) => Math.max(max, Number(variant.promoPercentageApplied) || 0),
+    0,
+  );
+
+  const nextItem = {
+    ...itemObj,
+    value: pricedVariants,
+  };
+
+  if (discountedVariants.length > 0) {
+    nextItem.pricing = {
+      original: originalMin,
+      promo: finalMin,
+      percentage: maxPercentage,
+      source: discountedVariants[0]?.pricingSource || "none",
+    };
+  } else {
+    delete nextItem.pricing;
+  }
+
+  return nextItem;
 };
 
 const resolveBrandId = async (brandId, brandName) => {
@@ -816,58 +899,11 @@ const getItemsAll = async (req, res) => {
       .populate("tags", "name slug active usageCount");
 
     const now = new Date();
-    const activeCategoryPromos = await bannerPromotionModel
-      .find({
-        tipo: "promo",
-        active: true,
-        startDate: { $lte: now },
-        endDate: { $gte: now },
-        categories: { $exists: true, $ne: [] },
-      })
-      .lean();
-
-    const categoryPromoMap = new Map();
-    activeCategoryPromos.forEach((promo) => {
-      if (!Array.isArray(promo.categories)) return;
-      promo.categories.forEach((categoryId) => {
-        if (!categoryPromoMap.has(String(categoryId))) {
-          categoryPromoMap.set(String(categoryId), promo.promotionPercentage);
-        }
-      });
-    });
-
-    const itemsWithPromo = data.map((item) => {
-      const itemObj = item.toObject();
-      const categoryId = itemObj.category;
-      let appliedPercentage = null;
-
-      if (categoryId && categoryPromoMap.has(String(categoryId))) {
-        const percentage = categoryPromoMap.get(String(categoryId));
-        if (typeof percentage === "number") {
-          appliedPercentage = percentage;
-        }
-      }
-
-      if (appliedPercentage === null) {
-        const productPromo = itemObj.promotion;
-        if (
-          productPromo?.active &&
-          typeof productPromo.percentage === "number" &&
-          productPromo.startDate &&
-          productPromo.endDate
-        ) {
-          const start = new Date(productPromo.startDate);
-          const end = new Date(productPromo.endDate);
-          if (now >= start && now <= end) {
-            appliedPercentage = productPromo.percentage;
-          }
-        }
-      }
-
-      return typeof appliedPercentage === "number"
-        ? applyPromotionToItem(itemObj, appliedPercentage)
-        : itemObj;
-    });
+    const activePromos = await getActivePricingPromos(now);
+    const promoIndex = buildPromoIndex(activePromos);
+    const itemsWithPromo = data.map((item) =>
+      applyResolvedPricingToItem(item, promoIndex, now),
+    );
 
     res.json({
       code: "200",
@@ -950,51 +986,10 @@ const getItemsById = async (req, res) => {
 
     itemObj.subcategory = subcategory || null;
 
-    // Promo por categoria (banner) tiene prioridad sobre promo propia del item
     const now = new Date();
-    const categoryId = itemObj.category?._id || itemObj.category;
-    let appliedPercentage = null;
-
-    if (categoryId) {
-      const categoryPromo = await bannerPromotionModel
-        .findOne({
-          tipo: "promo",
-          active: true,
-          startDate: { $lte: now },
-          endDate: { $gte: now },
-          categories: categoryId,
-        })
-        .sort({ startDate: -1 })
-        .lean();
-
-      if (
-        categoryPromo &&
-        typeof categoryPromo.promotionPercentage === "number"
-      ) {
-        appliedPercentage = categoryPromo.promotionPercentage;
-      }
-    }
-
-    if (appliedPercentage === null) {
-      const productPromo = itemObj.promotion;
-      if (
-        productPromo?.active &&
-        typeof productPromo.percentage === "number" &&
-        productPromo.startDate &&
-        productPromo.endDate
-      ) {
-        const start = new Date(productPromo.startDate);
-        const end = new Date(productPromo.endDate);
-        if (now >= start && now <= end) {
-          appliedPercentage = productPromo.percentage;
-        }
-      }
-    }
-
-    const finalItem =
-      typeof appliedPercentage === "number"
-        ? applyPromotionToItem(itemObj, appliedPercentage)
-        : itemObj;
+    const activePromos = await getActivePricingPromos(now);
+    const promoIndex = buildPromoIndex(activePromos);
+    const finalItem = applyResolvedPricingToItem(itemObj, promoIndex, now);
 
     res.json({
       code: "200",
@@ -1786,6 +1781,7 @@ const updateItemPromotion = async (req, res) => {
 
 const getItemRecentlyAdded = async (req, res) => {
   try {
+    const now = new Date();
     const items = await itemModel
 
       .find({ visibility: true })
@@ -1794,12 +1790,18 @@ const getItemRecentlyAdded = async (req, res) => {
 
       .limit(10);
 
+    const activePromos = await getActivePricingPromos(now);
+    const promoIndex = buildPromoIndex(activePromos);
+    const itemsWithPromo = items.map((item) =>
+      applyResolvedPricingToItem(item, promoIndex, now),
+    );
+
     res.json({
       code: "200",
 
       ok: true,
 
-      items,
+      items: itemsWithPromo,
     });
   } catch (error) {
     res.status(500).json({
@@ -1826,58 +1828,11 @@ const getFeaturedItems = async (req, res) => {
 
       .limit(10);
 
-    const activeCategoryPromos = await bannerPromotionModel
-      .find({
-        tipo: "promo",
-        active: true,
-        startDate: { $lte: now },
-        endDate: { $gte: now },
-        categories: { $exists: true, $ne: [] },
-      })
-      .lean();
-
-    const categoryPromoMap = new Map();
-    activeCategoryPromos.forEach((promo) => {
-      if (!Array.isArray(promo.categories)) return;
-      promo.categories.forEach((categoryId) => {
-        if (!categoryPromoMap.has(String(categoryId))) {
-          categoryPromoMap.set(String(categoryId), promo.promotionPercentage);
-        }
-      });
-    });
-
-    const itemsWithPromo = items.map((item) => {
-      const itemObj = item.toObject();
-      const categoryId = itemObj.category;
-      let appliedPercentage = null;
-
-      if (categoryId && categoryPromoMap.has(String(categoryId))) {
-        const percentage = categoryPromoMap.get(String(categoryId));
-        if (typeof percentage === "number") {
-          appliedPercentage = percentage;
-        }
-      }
-
-      if (appliedPercentage === null) {
-        const productPromo = itemObj.promotion;
-        if (
-          productPromo?.active &&
-          typeof productPromo.percentage === "number" &&
-          productPromo.startDate &&
-          productPromo.endDate
-        ) {
-          const start = new Date(productPromo.startDate);
-          const end = new Date(productPromo.endDate);
-          if (now >= start && now <= end) {
-            appliedPercentage = productPromo.percentage;
-          }
-        }
-      }
-
-      return typeof appliedPercentage === "number"
-        ? applyPromotionToItem(itemObj, appliedPercentage)
-        : itemObj;
-    });
+    const activePromos = await getActivePricingPromos(now);
+    const promoIndex = buildPromoIndex(activePromos);
+    const itemsWithPromo = items.map((item) =>
+      applyResolvedPricingToItem(item, promoIndex, now),
+    );
 
     res.json({
       code: "200",

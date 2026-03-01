@@ -136,6 +136,29 @@ const processTransaction = async (req, res) => {
       shipping: shippingCost
     });
 
+    if (process.env.DEBUG_PRICING === "true") {
+      console.info("[pricing.trace:checkout-online]", {
+        priceIncludesTax: Boolean(tenantConfig?.tax?.priceIncludesTax),
+        ivaRateDefault: Number(tenantConfig?.tax?.iva?.defaultRate ?? 0.15),
+        shippingCost,
+        items: itemsWithPrices.map((item, index) => ({
+          productId: String(item.productId),
+          variantId: String(item.variantId),
+          originalPrice: item.originalPrice,
+          clientPrice: item.clientPrice,
+          finalUnitPrice: item.price,
+          pricingSource: item.pricingSource,
+          promoPercentageApplied: item.promoPercentageApplied,
+          itemDiscount: item.itemDiscount,
+          ivaRateApplied: itemsForTax[index]?.ivaRateApplied,
+          lineSubtotal: taxBreakdown.items[index]?.subtotal,
+          lineTax: taxBreakdown.items[index]?.taxAmount,
+          lineTotal: taxBreakdown.items[index]?.totalLine,
+        })),
+        totals: taxBreakdown.totals,
+      });
+    }
+
     if (taxBreakdown?.strategy && taxBreakdown.strategy !== "ecuador_iva") {
       console.warn(
         `[Tax] Estrategia inesperada: ${taxBreakdown.strategy} (orderNumber: ${orderNumber})`
@@ -147,6 +170,12 @@ const processTransaction = async (req, res) => {
     const total = taxBreakdown.totals.total;
 
     const isCredits = transactionData.payment.method === "credits";
+    const normalizedCustomer = isCredits
+      ? {
+          ...transactionData.customer,
+          userId: req.uid,
+        }
+      : transactionData.customer;
     const checkoutMode = resolveCheckoutMode(req);
 
     let paymentResult = null;
@@ -158,7 +187,7 @@ const processTransaction = async (req, res) => {
     if (isCredits) {
       order = await createOrder({
         items: itemsWithPrices,
-        customer: transactionData.customer,
+        customer: normalizedCustomer,
         discountAmount,
         subtotal,
         tax,
@@ -192,7 +221,7 @@ const processTransaction = async (req, res) => {
         session,
         {
           orderId: order._id,
-          userId: transactionData.customer.userId,
+          userId: req.uid,
           amountCents,
           idempotencyKey,
         },
@@ -263,7 +292,7 @@ const processTransaction = async (req, res) => {
 
       order = await createOrder({
         items: itemsWithPrices,
-        customer: transactionData.customer,
+        customer: normalizedCustomer,
         discountAmount,
         subtotal,
         tax,
@@ -308,14 +337,16 @@ const processTransaction = async (req, res) => {
       );
     }
 
-    if (paymentResult.success) {
+    const paymentStatus = normalizePaymentStatus(paymentResult);
+
+    if (isPaid) {
       await updateStock(itemsWithPrices, session);
     }
 
     const invoice = await createInvoice(
       order,
       transaction,
-      paymentResult.success ? "paid" : "failed",
+      isPaid ? "paid" : paymentStatus,
       discountPercentage,
       session,
       tenantConfig,

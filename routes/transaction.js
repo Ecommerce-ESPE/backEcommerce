@@ -10,6 +10,12 @@ const { resolveTenant } = require("../middlewares/resolveTenant");
 const { loadTenantConfig } = require("../middlewares/loadTenantConfig");
 const { resolveBranch } = require("../middlewares/resolveBranch");
 
+const requireAuthForCredits = (req, res, next) => {
+  if (req.body?.payment?.method === "credits") {
+    return validarJWT(req, res, next);
+  }
+  return next();
+};
 
 
 const {getInvoicesAll,
@@ -24,6 +30,7 @@ router.post(
     resolveTenant,
     loadTenantConfig,
     resolveBranch,
+    requireAuthForCredits,
     // Validación de datos del cliente
     check('customer.name', 'El nombre del cliente es obligatorio').not().isEmpty(),
     check('customer.email', 'Ingrese un email válido').isEmail(),
