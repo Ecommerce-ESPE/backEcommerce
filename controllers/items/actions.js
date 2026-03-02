@@ -220,6 +220,8 @@ const applyResolvedPricingToItem = (item, promoIndex, now = new Date()) => {
   const discountedVariants = pricedVariants.filter(
     (variant) => typeof variant.discountPrice === "number",
   );
+  const representativeVariant =
+    discountedVariants[0] || pricedVariants[0] || null;
 
   const originalMin = originals.length > 0 ? Math.min(...originals) : null;
   const finalMin = finals.length > 0 ? Math.min(...finals) : null;
@@ -233,6 +235,13 @@ const applyResolvedPricingToItem = (item, promoIndex, now = new Date()) => {
     value: pricedVariants,
   };
 
+  nextItem.storedPromotion = itemObj.promotion || {
+    active: false,
+    percentage: 0,
+    startDate: null,
+    endDate: null,
+  };
+
   if (discountedVariants.length > 0) {
     nextItem.pricing = {
       original: originalMin,
@@ -240,11 +249,63 @@ const applyResolvedPricingToItem = (item, promoIndex, now = new Date()) => {
       percentage: maxPercentage,
       source: discountedVariants[0]?.pricingSource || "none",
     };
+
+    nextItem.promotion = {
+      active: true,
+      percentage: maxPercentage,
+      startDate:
+        representativeVariant?.pricingSource === "productPromo"
+          ? itemObj.promotion?.startDate || null
+          : null,
+      endDate:
+        representativeVariant?.pricingSource === "productPromo"
+          ? itemObj.promotion?.endDate || null
+          : null,
+      source: representativeVariant?.pricingSource || "none",
+      promoId: representativeVariant?.promoId || null,
+    };
   } else {
     delete nextItem.pricing;
+    nextItem.promotion = {
+      active: false,
+      percentage: 0,
+      startDate: null,
+      endDate: null,
+      source: "none",
+      promoId: null,
+    };
   }
 
   return nextItem;
+};
+
+const assertNoConflictingBannerPromoForItem = async (item, promotion) => {
+  if (!item || !promotion?.active) return;
+
+  const start = new Date(promotion.startDate);
+  const end = new Date(promotion.endDate);
+
+  const conflictingPromo = await bannerPromotionModel
+    .findOne({
+      tipo: "promo",
+      startDate: { $lte: end },
+      endDate: { $gte: start },
+      $or: [
+        { applyAll: true },
+        { products: item._id },
+        { subcategories: item.subcategory },
+        { categories: item.category },
+      ],
+    })
+    .select("_id title promotionPercentage");
+
+  if (conflictingPromo) {
+    const error = new Error(
+      `Ya existe una promocion banner activa para este producto en ese rango (${conflictingPromo.title || conflictingPromo._id}).`,
+    );
+    error.status = 409;
+    throw error;
+  }
 };
 
 const resolveBrandId = async (brandId, brandName) => {
@@ -913,8 +974,8 @@ const getItemsAll = async (req, res) => {
       items: itemsWithPromo,
     });
   } catch (error) {
-    res.status(500).json({
-      code: "500",
+    res.status(error.status || 500).json({
+      code: String(error.status || 500),
 
       ok: false,
 
@@ -1192,7 +1253,12 @@ const getFilteredItems = async (req, res) => {
       limit: limitNumber,
     });
 
-    const safeItems = items.map(sanitizeListingItem);
+    const now = new Date();
+    const activePromos = await getActivePricingPromos(now);
+    const promoIndex = buildPromoIndex(activePromos);
+    const safeItems = items
+      .map((item) => applyResolvedPricingToItem(item, promoIndex, now))
+      .map(sanitizeListingItem);
 
     return res.json({
       code: "200",
@@ -1289,7 +1355,12 @@ const getFilteredItemsAdmin = async (req, res) => {
       limit: limitNumber,
     });
 
-    const safeItems = items.map(sanitizeListingItem);
+    const now = new Date();
+    const activePromos = await getActivePricingPromos(now);
+    const promoIndex = buildPromoIndex(activePromos);
+    const safeItems = items
+      .map((item) => applyResolvedPricingToItem(item, promoIndex, now))
+      .map(sanitizeListingItem);
 
     return res.json({
       code: "200",
@@ -1725,6 +1796,8 @@ const updateItemPromotion = async (req, res) => {
 
     // Actualizar la promoción
 
+    await assertNoConflictingBannerPromoForItem(item, promotion);
+
     applyPromotionPriceHistory(item, promotion, uid);
 
     item.promotion = promotion;
@@ -1804,8 +1877,8 @@ const getItemRecentlyAdded = async (req, res) => {
       items: itemsWithPromo,
     });
   } catch (error) {
-    res.status(500).json({
-      code: "500",
+    res.status(error.status || 500).json({
+      code: String(error.status || 500),
 
       ok: false,
 
@@ -1819,20 +1892,45 @@ const getItemRecentlyAdded = async (req, res) => {
 const getFeaturedItems = async (req, res) => {
   try {
     const now = new Date();
-
-    const items = await itemModel
-
-      .find({ visibility: true, "promotion.active": true })
-
-      .sort({ "promotion.startDate": -1 })
-
-      .limit(10);
-
     const activePromos = await getActivePricingPromos(now);
     const promoIndex = buildPromoIndex(activePromos);
-    const itemsWithPromo = items.map((item) =>
-      applyResolvedPricingToItem(item, promoIndex, now),
+
+    const promoProductIds = activePromos.flatMap((promo) =>
+      Array.isArray(promo.products) ? promo.products : [],
     );
+    const promoSubcategoryIds = activePromos.flatMap((promo) =>
+      Array.isArray(promo.subcategories) ? promo.subcategories : [],
+    );
+    const promoCategoryIds = activePromos.flatMap((promo) =>
+      Array.isArray(promo.categories) ? promo.categories : [],
+    );
+    const hasApplyAllPromo = activePromos.some((promo) => promo.applyAll === true);
+
+    const featuredQuery = hasApplyAllPromo
+      ? { visibility: true }
+      : {
+          visibility: true,
+          $or: [
+            { "promotion.active": true },
+            ...(promoProductIds.length > 0 ? [{ _id: { $in: promoProductIds } }] : []),
+            ...(promoSubcategoryIds.length > 0
+              ? [{ subcategory: { $in: promoSubcategoryIds } }]
+              : []),
+            ...(promoCategoryIds.length > 0
+              ? [{ category: { $in: promoCategoryIds } }]
+              : []),
+          ],
+        };
+
+    const items = await itemModel
+      .find(featuredQuery)
+      .sort({ updatedAt: -1 })
+      .limit(hasApplyAllPromo ? 100 : 50);
+
+    const itemsWithPromo = items
+      .map((item) => applyResolvedPricingToItem(item, promoIndex, now))
+      .filter((item) => item?.pricing && item?.promotion?.active)
+      .slice(0, 10);
 
     res.json({
       code: "200",

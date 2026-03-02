@@ -1,5 +1,54 @@
 const { bannerPromotionModel, itemModel } = require("../../models/index");
 
+const normalizePromoDates = (payload = {}) => {
+  const start = payload.startDate ? new Date(payload.startDate) : null;
+  const end = payload.endDate ? new Date(payload.endDate) : null;
+
+  if (!start || !end || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    const error = new Error("Las promociones requieren startDate y endDate validos.");
+    error.status = 400;
+    throw error;
+  }
+
+  if (start > end) {
+    const error = new Error("startDate no puede ser mayor que endDate.");
+    error.status = 400;
+    throw error;
+  }
+
+  return { start, end };
+};
+
+const assertNoOverlappingPromo = async (payload = {}, excludedId = null) => {
+  const tipo = payload.tipo || "banner";
+  if (tipo !== "promo") return;
+
+  const { start, end } = normalizePromoDates(payload);
+  const filter = {
+    tipo: "promo",
+    startDate: { $lte: end },
+    endDate: { $gte: start },
+  };
+
+  if (excludedId) {
+    filter._id = { $ne: excludedId };
+  }
+
+  const conflictingPromo = await bannerPromotionModel.findOne(filter).select("_id title");
+  if (conflictingPromo) {
+    const error = new Error(
+      `Ya existe una oferta en ese rango (${conflictingPromo.title || conflictingPromo._id}).`,
+    );
+    error.status = 409;
+    throw error;
+  }
+};
+
+const rangesOverlap = (startA, endA, startB, endB) => {
+  if (!startA || !endA || !startB || !endB) return false;
+  return new Date(startA) <= new Date(endB) && new Date(endA) >= new Date(startB);
+};
+
 // Función para actualizar estados antes de mostrar
 function actualizarEstadoBanner(banner) {
   const now = new Date();
@@ -63,6 +112,7 @@ const createBanner = async (req, res) => {
       buttonText,
       href,
       colSize,
+      tipo = "banner",
       startDate,
       endDate,
       promotionPercentage,
@@ -72,6 +122,8 @@ const createBanner = async (req, res) => {
       applyAll = false,
     } = req.body;
 
+    await assertNoOverlappingPromo({ tipo, startDate, endDate });
+
     const banner = new bannerPromotionModel({
       image,
       subtitle,
@@ -79,6 +131,7 @@ const createBanner = async (req, res) => {
       buttonText,
       href,
       colSize,
+      tipo,
       startDate,
       endDate,
       promotionPercentage,
@@ -89,6 +142,7 @@ const createBanner = async (req, res) => {
     });
 
     await banner.save();
+    await clearOverriddenItemPromotionsForBanner(banner);
 
     res.status(201).json({
       ok: true,
@@ -96,7 +150,9 @@ const createBanner = async (req, res) => {
       banner: banner,
     });
   } catch (error) {
-    res.status(400).json({ error: "Error al crear el banner", detail: error.message });
+    res
+      .status(error.status || 400)
+      .json({ error: "Error al crear el banner", detail: error.message });
   }
 };
 
@@ -108,6 +164,15 @@ const updateBanner = async (req, res) => {
     if (!existingBanner) {
       return res.status(404).json({ error: "Banner no encontrado" });
     }
+
+    await assertNoOverlappingPromo(
+      {
+        tipo: req.body.tipo ?? existingBanner.tipo,
+        startDate: req.body.startDate ?? existingBanner.startDate,
+        endDate: req.body.endDate ?? existingBanner.endDate,
+      },
+      existingBanner._id,
+    );
 
     const updatedBanner = await bannerPromotionModel.findByIdAndUpdate(
       req.params.id,
@@ -126,7 +191,9 @@ const updateBanner = async (req, res) => {
 
     res.status(200).json(updatedBanner);
   } catch (error) {
-    res.status(400).json({ error: "Error al actualizar el banner", detail: error.message });
+    res
+      .status(error.status || 400)
+      .json({ error: "Error al actualizar el banner", detail: error.message });
   }
 };
 
@@ -138,8 +205,6 @@ const deleteBanner = async (req, res) => {
     if (!banner) return res.status(404).json({ error: "Banner no encontrado" });
 
     await bannerPromotionModel.findByIdAndDelete(req.params.id);
-
-    await clearPromotionFromProducts(banner);
 
     res.status(200).json({ message: "Banner eliminado correctamente" });
   } catch (error) {
@@ -218,26 +283,39 @@ const clearPromotionFromProducts = async (banner) => {
   });
 };
 
-const syncPromotionToProducts = async (oldBanner, newBanner) => {
-  const oldFilter = buildProductFilterFromBanner(oldBanner);
-  const newFilter = buildProductFilterFromBanner(newBanner);
+const clearOverriddenItemPromotionsForBanner = async (banner) => {
+  if (!banner || banner.tipo !== "promo") return;
 
-  if (oldFilter) {
-    await itemModel.updateMany(oldFilter, {
-      $set: {
-        promotion: {
-          active: false,
-          percentage: 0,
-          startDate: null,
-          endDate: null,
-        },
-      },
-    });
+  const filter = buildProductFilterFromBanner(banner);
+  if (filter === null) return;
+
+  const items = await itemModel.find(filter);
+  for (const item of items) {
+    const itemPromotion = item.promotion || {};
+    if (!itemPromotion.active) continue;
+
+    if (
+      !rangesOverlap(
+        itemPromotion.startDate,
+        itemPromotion.endDate,
+        banner.startDate,
+        banner.endDate,
+      )
+    ) {
+      continue;
+    }
+
+    item.promotion = {
+      active: false,
+      percentage: 0,
+      startDate: null,
+      endDate: null,
+    };
+
+    await item.save();
   }
+};
 
-  if (!newFilter) return;
-
-  const promotion = getPromotionPayloadFromBanner(newBanner);
-
-  await itemModel.updateMany(newFilter, { $set: { promotion } });
+const syncPromotionToProducts = async (oldBanner, newBanner) => {
+  await clearOverriddenItemPromotionsForBanner(newBanner);
 };
