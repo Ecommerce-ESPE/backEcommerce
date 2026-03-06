@@ -2,7 +2,8 @@ const { Router } = require("express");
 const {
   getPublicBranding,
   getPublicModules,
-  getPublicStoreSettings
+  getPublicStoreSettings,
+  getPublicFooter
 } = require("../controllers/tenant");
 const {
   getBranches,
@@ -17,6 +18,7 @@ const router = Router();
 router.get("/branding", getPublicBranding);
 router.get("/modules", getPublicModules);
 router.get("/settings", getPublicStoreSettings);
+router.get("/footer", getPublicFooter);
 router.get("/branches", getBranches);
 router.get("/branches/:branchId/queues/:serviceType", getQueueStatus);
 router.get("/track/:code", trackCode);

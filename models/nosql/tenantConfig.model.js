@@ -18,6 +18,48 @@ const BrandingSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const FooterLinkSchema = new mongoose.Schema(
+  {
+    label: { type: String, default: "" },
+    href: { type: String, default: "" }
+  },
+  { _id: false }
+);
+
+const FooterContactSchema = new mongoose.Schema(
+  {
+    address: { type: String, default: "" },
+    phone: { type: String, default: "" },
+    email: { type: String, default: "" },
+    schedule: { type: String, default: "" },
+    whatsapp: { type: String, default: "" }
+  },
+  { _id: false }
+);
+
+const FooterSocialSchema = new mongoose.Schema(
+  {
+    facebook: { type: String, default: "" },
+    instagram: { type: String, default: "" },
+    tiktok: { type: String, default: "" },
+    x: { type: String, default: "" }
+  },
+  { _id: false }
+);
+
+const FooterSchema = new mongoose.Schema(
+  {
+    enabled: { type: Boolean, default: true },
+    aboutText: { type: String, default: "" },
+    contact: { type: FooterContactSchema, default: () => ({}) },
+    social: { type: FooterSocialSchema, default: () => ({}) },
+    quickLinks: { type: [FooterLinkSchema], default: [] },
+    legalLinks: { type: [FooterLinkSchema], default: [] },
+    copyrightText: { type: String, default: "" }
+  },
+  { _id: false }
+);
+
 const ModulesSchema = new mongoose.Schema(
   {
     ecommerceStorefront: { type: Boolean, default: true },
@@ -162,11 +204,27 @@ const NumbersSchema = new mongoose.Schema(
   {
     orderNumber: {
       format: { type: String, default: "ORD-{YYYY}{MM}{DD}-{SEQ}" },
-      reset: { type: String, default: "daily" }
+      reset: {
+        type: String,
+        enum: ["daily", "monthly", "yearly", "never"],
+        default: "daily"
+      }
     },
     ticketNumber: {
       format: { type: String, default: "T-{YYYY}{MM}{DD}-{SEQ}" },
-      reset: { type: String, default: "daily" }
+      reset: {
+        type: String,
+        enum: ["daily", "monthly", "yearly", "never"],
+        default: "daily"
+      }
+    },
+    invoiceNumber: {
+      format: { type: String, default: "INV-{YYYY}{MM}{DD}-{SEQ}" },
+      reset: {
+        type: String,
+        enum: ["daily", "monthly", "yearly", "never"],
+        default: "daily"
+      }
     }
   },
   { _id: false }
@@ -224,6 +282,7 @@ const TenantConfigSchema = new mongoose.Schema(
       timezone: { type: String, default: "America/Guayaquil" }
     },
     branding: { type: BrandingSchema, default: () => ({}) },
+    footer: { type: FooterSchema, default: () => ({}) },
     modules: { type: ModulesSchema, default: () => ({}) },
     tax: { type: TaxSchema, default: () => ({}) },
     sales: { type: SalesSchema, default: () => ({}) },
@@ -253,6 +312,26 @@ const buildDefaultTenantConfig = (tenantId = "DEFAULT") => ({
       secondary: "#64748b",
       accent: "#f97316"
     }
+  },
+  footer: {
+    enabled: true,
+    aboutText: "",
+    contact: {
+      address: "",
+      phone: "",
+      email: "",
+      schedule: "",
+      whatsapp: ""
+    },
+    social: {
+      facebook: "",
+      instagram: "",
+      tiktok: "",
+      x: ""
+    },
+    quickLinks: [],
+    legalLinks: [],
+    copyrightText: ""
   },
   modules: {
     ecommerceStorefront: true,
@@ -329,7 +408,8 @@ const buildDefaultTenantConfig = (tenantId = "DEFAULT") => ({
   },
   numbers: {
     orderNumber: { format: "ORD-{YYYY}{MM}{DD}-{SEQ}", reset: "daily" },
-    ticketNumber: { format: "T-{YYYY}{MM}{DD}-{SEQ}", reset: "daily" }
+    ticketNumber: { format: "T-{YYYY}{MM}{DD}-{SEQ}", reset: "daily" },
+    invoiceNumber: { format: "INV-{YYYY}{MM}{DD}-{SEQ}", reset: "daily" }
   },
   invoice: {
     termsAndConditions:

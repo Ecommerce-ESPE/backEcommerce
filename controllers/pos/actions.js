@@ -113,7 +113,8 @@ const createPosOrder = async (req, res) => {
     const orderNumber = await buildOrderNumber(
       tenantId,
       branchId,
-      req.tenantConfig?.numbers?.orderNumber?.format
+      req.tenantConfig?.numbers?.orderNumber?.format,
+      req.tenantConfig?.numbers?.orderNumber?.reset
     );
 
     let ticket = null;

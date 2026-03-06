@@ -1,4 +1,5 @@
 const { counterModel } = require("../models/index");
+const VALID_RESETS = new Set(["daily", "monthly", "yearly", "never"]);
 
 const getDayKey = (date = new Date()) => {
   const d = new Date(date);
@@ -6,6 +7,31 @@ const getDayKey = (date = new Date()) => {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}${m}${day}`;
+};
+
+const getMonthKey = (date = new Date()) => {
+  const d = new Date(date);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  return `${y}${m}`;
+};
+
+const getYearKey = (date = new Date()) => {
+  const d = new Date(date);
+  return String(d.getFullYear());
+};
+
+const normalizeReset = (reset) => {
+  const normalized = String(reset || "daily").toLowerCase();
+  return VALID_RESETS.has(normalized) ? normalized : "daily";
+};
+
+const getPeriodKey = (reset, date = new Date()) => {
+  const mode = normalizeReset(reset);
+  if (mode === "monthly") return getMonthKey(date);
+  if (mode === "yearly") return getYearKey(date);
+  if (mode === "never") return "GLOBAL";
+  return getDayKey(date);
 };
 
 const nextSequence = async (counterId) => {
@@ -30,9 +56,9 @@ const formatNumber = (format, date, seq, seqPad = 4) => {
     .replace("{SEQ}", SEQ);
 };
 
-const buildOrderNumber = async (tenantId, branchId, format) => {
-  const dayKey = getDayKey();
-  const counterId = `order:${tenantId}:${branchId}:${dayKey}`;
+const buildOrderNumber = async (tenantId, branchId, format, reset = "daily") => {
+  const periodKey = getPeriodKey(reset);
+  const counterId = `order:${tenantId}:${branchId}:${periodKey}`;
   const seq = await nextSequence(counterId);
   const fmt = format || "ORD-{YYYY}{MM}{DD}-{SEQ}";
   return formatNumber(fmt, new Date(), seq);
@@ -46,20 +72,36 @@ const applyPrefixToFormat = (format, prefix) => {
   return format.replace(/^T/, safePrefix);
 };
 
-const buildTicketNumber = async (tenantId, branchId, serviceType, format, prefix) => {
-  const dayKey = getDayKey();
-  const counterId = `ticket:${tenantId}:${branchId}:${serviceType}:${dayKey}`;
+const buildTicketNumber = async (
+  tenantId,
+  branchId,
+  serviceType,
+  format,
+  prefix,
+  reset = "daily",
+) => {
+  const periodKey = getPeriodKey(reset);
+  const counterId = `ticket:${tenantId}:${branchId}:${serviceType}:${periodKey}`;
   const seq = await nextSequence(counterId);
   const fmt = applyPrefixToFormat(format || "T-{YYYY}{MM}{DD}-{SEQ}", prefix);
   return {
     code: formatNumber(fmt, new Date(), seq),
     seq,
-    dayKey
+    dayKey: getDayKey()
   };
+};
+
+const buildInvoiceNumber = async (tenantId, branchId, format, reset = "daily") => {
+  const periodKey = getPeriodKey(reset);
+  const counterId = `invoice:${tenantId}:${branchId}:${periodKey}`;
+  const seq = await nextSequence(counterId);
+  const fmt = format || "INV-{YYYY}{MM}{DD}-{SEQ}";
+  return formatNumber(fmt, new Date(), seq);
 };
 
 module.exports = {
   buildOrderNumber,
   buildTicketNumber,
+  buildInvoiceNumber,
   formatNumber
 };

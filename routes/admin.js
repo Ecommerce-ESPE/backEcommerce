@@ -1,6 +1,10 @@
 const { Router } = require("express");
 const { resetTenantConfig } = require("../controllers/tenant");
-const { getTenantConfig, patchTenantConfig } = require("../controllers/tenantConfig.controller");
+const {
+  getTenantConfig,
+  patchTenantConfig,
+  patchFooter
+} = require("../controllers/tenantConfig.controller");
 const {
   createUserAdmin,
   createMembership,
@@ -53,6 +57,7 @@ router.use(requireAdminOrTenantAdmin);
 router.get("/tenant-config", getTenantConfig);
 router.put("/tenant-config", patchTenantConfig);
 router.patch("/tenant-config", patchTenantConfig);
+router.patch("/tenant-config/footer", patchFooter);
 router.post("/tenant-config/reset", resetTenantConfig);
 
 router.post("/users", createUserAdmin);

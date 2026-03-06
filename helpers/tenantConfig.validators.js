@@ -1,6 +1,7 @@
 const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
 const DIGITS_RE = /^\d+$/;
-const NUMBER_FORMAT_RE = /^(?=.*\{YYYY\})(?=.*\{MM\})(?=.*\{DD\})(?=.*\{SEQ\}).+$/;
+const NUMBER_FORMAT_RE = /^(?=.*\{SEQ\}).+$/;
+const VALID_RESETS = ["daily", "monthly", "yearly", "never"];
 const VALID_ROLES = ["CASHIER", "KITCHEN", "DISPATCH", "COURIER", "ADMIN", "MANAGER"];
 const MODULE_KEYS = [
   "ecommerceStorefront",
@@ -98,6 +99,25 @@ const validateTenantConfig = (config = {}) => {
     "maintenance",
     details
   );
+  ensureBooleanFields(config?.footer, ["enabled"], "footer", details);
+
+  const validateFooterLinks = (links, path) => {
+    if (links === undefined) return;
+    if (!Array.isArray(links)) {
+      details.push({ path, message: "Debe ser un array" });
+      return;
+    }
+    links.forEach((link, index) => {
+      if (link?.label !== undefined && String(link.label).trim().length === 0) {
+        details.push({ path: `${path}[${index}].label`, message: "Label no vacio" });
+      }
+      if (link?.href !== undefined && String(link.href).trim().length === 0) {
+        details.push({ path: `${path}[${index}].href`, message: "Href no vacio" });
+      }
+    });
+  };
+  validateFooterLinks(config?.footer?.quickLinks, "footer.quickLinks");
+  validateFooterLinks(config?.footer?.legalLinks, "footer.legalLinks");
 
   const queues = Array.isArray(config?.operations?.queues) ? config.operations.queues : [];
   ensureUniqueKeys(queues, "operations.queues", details);
@@ -133,7 +153,7 @@ const validateTenantConfig = (config = {}) => {
   if (orderFormat !== undefined && !NUMBER_FORMAT_RE.test(String(orderFormat))) {
     details.push({
       path: "numbers.orderNumber.format",
-      message: "Debe incluir placeholders {YYYY}{MM}{DD}{SEQ}"
+      message: "Debe incluir al menos el placeholder {SEQ}"
     });
   }
 
@@ -141,7 +161,39 @@ const validateTenantConfig = (config = {}) => {
   if (ticketFormat !== undefined && !NUMBER_FORMAT_RE.test(String(ticketFormat))) {
     details.push({
       path: "numbers.ticketNumber.format",
-      message: "Debe incluir placeholders {YYYY}{MM}{DD}{SEQ}"
+      message: "Debe incluir al menos el placeholder {SEQ}"
+    });
+  }
+
+  const invoiceFormat = config?.numbers?.invoiceNumber?.format;
+  if (invoiceFormat !== undefined && !NUMBER_FORMAT_RE.test(String(invoiceFormat))) {
+    details.push({
+      path: "numbers.invoiceNumber.format",
+      message: "Debe incluir al menos el placeholder {SEQ}"
+    });
+  }
+
+  const orderReset = config?.numbers?.orderNumber?.reset;
+  if (orderReset !== undefined && !VALID_RESETS.includes(String(orderReset))) {
+    details.push({
+      path: "numbers.orderNumber.reset",
+      message: `Debe ser uno de: ${VALID_RESETS.join(", ")}`
+    });
+  }
+
+  const ticketReset = config?.numbers?.ticketNumber?.reset;
+  if (ticketReset !== undefined && !VALID_RESETS.includes(String(ticketReset))) {
+    details.push({
+      path: "numbers.ticketNumber.reset",
+      message: `Debe ser uno de: ${VALID_RESETS.join(", ")}`
+    });
+  }
+
+  const invoiceReset = config?.numbers?.invoiceNumber?.reset;
+  if (invoiceReset !== undefined && !VALID_RESETS.includes(String(invoiceReset))) {
+    details.push({
+      path: "numbers.invoiceNumber.reset",
+      message: `Debe ser uno de: ${VALID_RESETS.join(", ")}`
     });
   }
 

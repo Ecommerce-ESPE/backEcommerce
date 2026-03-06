@@ -138,12 +138,14 @@ const InvoiceSchema = new mongoose.Schema(
 // Auto-increment invoiceNumber and calculate dueDate
 InvoiceSchema.pre("save", async function (next) {
   if (this.isNew) {
-    const counter = await Counter.findByIdAndUpdate(
-      { _id: "invoice_number" },
-      { $inc: { seq: 1 } },
-      { new: true, upsert: true }
-    );
-    this.invoiceNumber = String(counter.seq).padStart(10, "0");
+    if (!this.invoiceNumber) {
+      const counter = await Counter.findByIdAndUpdate(
+        { _id: "invoice_number" },
+        { $inc: { seq: 1 } },
+        { new: true, upsert: true }
+      );
+      this.invoiceNumber = String(counter.seq).padStart(10, "0");
+    }
 
     if (!this.dueDate) {
       const due = new Date();

@@ -1,4 +1,5 @@
 const { invoiceModel } = require("../../models/index");
+const { buildInvoiceNumber } = require("../../utils/numbering");
 
 const buildQrData = ({ tenantId, invoiceNumber, accessKey }) => {
   if (accessKey) {
@@ -119,6 +120,13 @@ const createInvoice = async (
         tenantConfig?.branding?.logoUrl || "../../storage/logo.svg",
     },
   };
+
+  invoiceData.invoiceNumber = await buildInvoiceNumber(
+    invoiceData.tenantId,
+    invoiceData.branchId,
+    tenantConfig?.numbers?.invoiceNumber?.format,
+    tenantConfig?.numbers?.invoiceNumber?.reset
+  );
 
   const invoice = new invoiceModel(invoiceData);
   const saved = await invoice.save({ session });

@@ -13,12 +13,14 @@ const createTicket = async ({
   );
   const prefix = queue?.ticketPrefix || "T";
   const format = config?.numbers?.ticketNumber?.format || "T-{YYYY}{MM}{DD}-{SEQ}";
+  const reset = config?.numbers?.ticketNumber?.reset || "daily";
   const { code, seq, dayKey } = await buildTicketNumber(
     tenantId,
     branchId,
     serviceType,
     format,
-    prefix
+    prefix,
+    reset
   );
 
   const ticket = new serviceTicketModel({

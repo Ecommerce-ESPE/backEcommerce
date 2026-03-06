@@ -1,4 +1,168 @@
-const { bannerPromotionModel, itemModel } = require("../../models/index");
+const mongoose = require("mongoose");
+const { bannerPromotionModel, itemModel, categoryModel } = require("../../models/index");
+
+const getIdAsString = (value) => {
+  if (!value) return null;
+  if (typeof value === "string") return value;
+
+  if (
+    value instanceof mongoose.Types.ObjectId ||
+    (typeof value === "object" && value?._bsontype === "ObjectId")
+  ) {
+    return String(value);
+  }
+
+  if (typeof value === "object" && value._id && value._id !== value) {
+    return getIdAsString(value._id);
+  }
+
+  if (typeof value.toString === "function") {
+    const converted = value.toString();
+    if (converted && converted !== "[object Object]") return converted;
+  }
+  return null;
+};
+
+const enrichBannersWithProductNames = async (banners = []) => {
+  const bannersAsObjects = banners.map((banner) =>
+    typeof banner?.toObject === "function" ? banner.toObject() : banner,
+  );
+
+  try {
+    const productIds = [
+      ...new Set(
+        bannersAsObjects
+          .flatMap((banner) => (Array.isArray(banner?.products) ? banner.products : []))
+          .map((productId) => getIdAsString(productId))
+          .filter(Boolean),
+      ),
+    ];
+
+    const productNameById = new Map();
+    const validProductIds = productIds.filter((id) =>
+      mongoose.Types.ObjectId.isValid(id),
+    );
+
+    if (validProductIds.length > 0) {
+      const products = await itemModel
+        .find({ _id: { $in: validProductIds } })
+        .select("_id nameProduct")
+        .lean();
+
+      for (const product of products) {
+        productNameById.set(String(product._id), product.nameProduct || null);
+      }
+    }
+
+    const categoryIds = [
+      ...new Set(
+        bannersAsObjects
+          .flatMap((banner) => (Array.isArray(banner?.categories) ? banner.categories : []))
+          .map((categoryId) => getIdAsString(categoryId))
+          .filter(Boolean),
+      ),
+    ];
+    const validCategoryIds = categoryIds.filter((id) =>
+      mongoose.Types.ObjectId.isValid(id),
+    );
+
+    const categoryNameById = new Map();
+    if (validCategoryIds.length > 0) {
+      const categories = await categoryModel
+        .find({ _id: { $in: validCategoryIds } })
+        .select("_id name")
+        .lean();
+
+      for (const category of categories) {
+        categoryNameById.set(String(category._id), category.name || null);
+      }
+    }
+
+    const subcategoryIds = [
+      ...new Set(
+        bannersAsObjects
+          .flatMap((banner) =>
+            Array.isArray(banner?.subcategories) ? banner.subcategories : [],
+          )
+          .map((subcategoryId) => getIdAsString(subcategoryId))
+          .filter(Boolean),
+      ),
+    ];
+    const validSubcategoryIds = subcategoryIds.filter((id) =>
+      mongoose.Types.ObjectId.isValid(id),
+    );
+
+    const subcategoryNameById = new Map();
+    if (validSubcategoryIds.length > 0) {
+      const categoriesWithSubcategories = await categoryModel
+        .find({ "subcategories._id": { $in: validSubcategoryIds } })
+        .select("subcategories._id subcategories.name")
+        .lean();
+
+      for (const category of categoriesWithSubcategories) {
+        const subcategories = Array.isArray(category?.subcategories)
+          ? category.subcategories
+          : [];
+        for (const subcategory of subcategories) {
+          const subcategoryId = getIdAsString(subcategory?._id);
+          if (!subcategoryId || !validSubcategoryIds.includes(subcategoryId)) continue;
+          subcategoryNameById.set(subcategoryId, subcategory?.name || null);
+        }
+      }
+    }
+
+    return bannersAsObjects.map((banner) => {
+      const productDetails = (Array.isArray(banner.products) ? banner.products : [])
+        .map((productId) => {
+          const id = getIdAsString(productId);
+          if (!id) return null;
+          return {
+            _id: id,
+            nameProduct: productNameById.get(id) || null,
+          };
+        })
+        .filter(Boolean);
+
+      const categoryDetails = (Array.isArray(banner.categories) ? banner.categories : [])
+        .map((categoryId) => {
+          const id = getIdAsString(categoryId);
+          if (!id) return null;
+          return {
+            _id: id,
+            name: categoryNameById.get(id) || categoryId?.name || null,
+          };
+        })
+        .filter(Boolean);
+
+      const subcategoryDetails = (Array.isArray(banner.subcategories) ? banner.subcategories : [])
+        .map((subcategoryId) => {
+          const id = getIdAsString(subcategoryId);
+          if (!id) return null;
+          return {
+            _id: id,
+            name: subcategoryNameById.get(id) || null,
+          };
+        })
+        .filter(Boolean);
+
+      return {
+        ...banner,
+        products: productDetails,
+        categories: categoryDetails,
+        subcategories: subcategoryDetails,
+      };
+    });
+  } catch (error) {
+    console.error("No se pudo enriquecer banners con nombres de productos:", error.message);
+
+    return bannersAsObjects.map((banner) => ({
+      ...banner,
+      products: [],
+      categories: [],
+      subcategories: [],
+    }));
+  }
+};
 
 const normalizePromoDates = (payload = {}) => {
   const start = payload.startDate ? new Date(payload.startDate) : null;
@@ -78,7 +242,9 @@ const getAllBanners = async (req, res) => {
       })
     );
 
-    res.status(200).json(bannersActualizados);
+    const bannersConNombres = await enrichBannersWithProductNames(bannersActualizados);
+
+    res.status(200).json(bannersConNombres);
   } catch (error) {
     res.status(500).json({ error: "Error al obtener los banners" });
   }
@@ -88,7 +254,6 @@ const getAllBanners = async (req, res) => {
 const getBannerById = async (req, res) => {
   try {
     const banner = await bannerPromotionModel.findById(req.params.id)
-      .populate("products")
       .populate("categories");
 
     if (!banner) return res.status(404).json({ error: "Banner no encontrado" });
@@ -96,7 +261,9 @@ const getBannerById = async (req, res) => {
     actualizarEstadoBanner(banner);
     await banner.save();
 
-    res.status(200).json(banner);
+    const [bannerConNombres] = await enrichBannersWithProductNames([banner]);
+
+    res.status(200).json(bannerConNombres);
   } catch (error) {
     res.status(500).json({ error: "Error al obtener el banner" });
   }

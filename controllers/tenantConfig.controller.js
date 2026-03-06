@@ -115,6 +115,41 @@ const patchMaintenance = async (req, res) => {
   }
 };
 
+const patchFooter = async (req, res) => {
+  try {
+    const tenantId = req.tenantId || "DEFAULT";
+    const config = await getOrCreateTenantConfig(tenantId);
+
+    const allowed = [
+      "enabled",
+      "aboutText",
+      "contact",
+      "social",
+      "quickLinks",
+      "legalLinks",
+      "copyrightText"
+    ];
+    const footerPatch = {};
+    allowed.forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(req.body || {}, key)) {
+        footerPatch[key] = req.body[key];
+      }
+    });
+
+    const merged = deepMerge(config.toObject(), { footer: footerPatch });
+    const validation = validateTenantConfig(merged);
+    if (!validation.valid) {
+      return sendValidationError(res, validation.details);
+    }
+
+    config.set(validation.sanitized);
+    await config.save();
+    return res.json({ ok: true, data: config.footer, message: "OK" });
+  } catch (error) {
+    return res.status(500).json({ ok: false, code: "INTERNAL_ERROR", message: error.message });
+  }
+};
+
 const getSystemStatus = async (req, res) => {
   try {
     const tenantId = req.tenantId || "DEFAULT";
@@ -138,5 +173,6 @@ module.exports = {
   listPresets,
   applyTenantPreset,
   patchMaintenance,
+  patchFooter,
   getSystemStatus
 };

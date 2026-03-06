@@ -180,11 +180,52 @@ const getPublicStoreSettings = async (req, res) => {
   }
 };
 
+const getPublicFooter = async (req, res) => {
+  try {
+    const tenantId = req.query.tenantId || "DEFAULT";
+    const config = await tenantConfigModel.findOne({ tenantId }).lean();
+    if (!config) {
+      return res.status(404).json({
+        ok: false,
+        data: null,
+        message: "Tenant no encontrado"
+      });
+    }
+
+    const businessName = config?.business?.name || "";
+    const footer = config?.footer || {};
+
+    return res.json({
+      ok: true,
+      data: {
+        enabled: footer.enabled !== false,
+        businessName,
+        logoUrl: config?.branding?.logoUrl || "",
+        aboutText: footer.aboutText || "",
+        contact: footer.contact || {},
+        social: footer.social || {},
+        quickLinks: Array.isArray(footer.quickLinks) ? footer.quickLinks : [],
+        legalLinks: Array.isArray(footer.legalLinks) ? footer.legalLinks : [],
+        copyrightText:
+          footer.copyrightText || `© ${new Date().getFullYear()} ${businessName}`.trim(),
+      },
+      message: "OK"
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      data: null,
+      message: "Error obteniendo footer"
+    });
+  }
+};
+
 module.exports = {
   getTenantConfig,
   updateTenantConfig,
   resetTenantConfig,
   getPublicBranding,
   getPublicModules,
-  getPublicStoreSettings
+  getPublicStoreSettings,
+  getPublicFooter
 };

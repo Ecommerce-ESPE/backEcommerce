@@ -102,7 +102,8 @@ const processTransaction = async (req, res) => {
     const orderNumber = await buildOrderNumber(
       tenantId,
       branchId,
-      tenantConfig?.numbers?.orderNumber?.format
+      tenantConfig?.numbers?.orderNumber?.format,
+      tenantConfig?.numbers?.orderNumber?.reset
     );
 
     const productIds = itemsWithPrices.map((item) => item.productId);
