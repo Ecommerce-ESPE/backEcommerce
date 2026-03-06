@@ -42,6 +42,46 @@ const ensureUniqueKeys = (items, path, details) => {
   });
 };
 
+const validateMaintenanceRoutes = (routes, path, details) => {
+  if (routes === undefined) return;
+  if (!Array.isArray(routes)) {
+    details.push({ path, message: "Debe ser un array" });
+    return;
+  }
+  if (routes.length > 50) {
+    details.push({ path, message: "Maximo 50 rutas permitidas" });
+    return;
+  }
+
+  routes.forEach((route, index) => {
+    const value = String(route || "").trim();
+    if (!value) {
+      details.push({ path: `${path}[${index}]`, message: "Ruta no puede estar vacia" });
+      return;
+    }
+    if (!value.startsWith("/")) {
+      details.push({
+        path: `${path}[${index}]`,
+        message: "La ruta debe iniciar con /"
+      });
+      return;
+    }
+    if (value.length > 120) {
+      details.push({
+        path: `${path}[${index}]`,
+        message: "Ruta demasiado larga (max 120)"
+      });
+      return;
+    }
+    if (["/", "/api", "/api/"].includes(value)) {
+      details.push({
+        path: `${path}[${index}]`,
+        message: "Ruta demasiado amplia, usa rutas especificas"
+      });
+    }
+  });
+};
+
 const validateTenantConfig = (config = {}) => {
   const details = [];
 
@@ -206,6 +246,9 @@ const validateTenantConfig = (config = {}) => {
       message: "Maximo 200 caracteres"
     });
   }
+
+  validateMaintenanceRoutes(config?.maintenance?.allowPrefixes, "maintenance.allowPrefixes", details);
+  validateMaintenanceRoutes(config?.maintenance?.allowExact, "maintenance.allowExact", details);
 
   return {
     valid: details.length === 0,

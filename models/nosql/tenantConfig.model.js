@@ -88,7 +88,9 @@ const MaintenanceSchema = new mongoose.Schema(
     disableStorefront: { type: Boolean, default: false },
     disablePOS: { type: Boolean, default: false },
     allowAdminAccess: { type: Boolean, default: true },
-    equipmentTracking: { type: Boolean, default: true }
+    equipmentTracking: { type: Boolean, default: true },
+    allowPrefixes: { type: [String], default: [] },
+    allowExact: { type: [String], default: [] }
   },
   { _id: false }
 );
@@ -433,7 +435,9 @@ const buildDefaultTenantConfig = (tenantId = "DEFAULT") => ({
     disableStorefront: false,
     disablePOS: false,
     allowAdminAccess: true,
-    equipmentTracking: true
+    equipmentTracking: true,
+    allowPrefixes: [],
+    allowExact: []
   }
 });
 

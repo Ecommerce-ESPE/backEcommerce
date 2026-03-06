@@ -2,8 +2,8 @@ const jwt = require("jsonwebtoken");
 const { getOrCreateTenantConfig } = require("../helpers/getTenantConfig");
 const { isMaintenanceModeEnabled } = require("../helpers/maintenance");
 
-const ALWAYS_ALLOWED_PREFIXES = ["/api/auth", "/api/admin", "/api/tenant-config"];
-const ALWAYS_ALLOWED_EXACT = ["/health", "/api/health"];
+const BASE_ALLOWED_PREFIXES = ["/api/auth", "/api/admin", "/api/tenant-config"];
+const BASE_ALLOWED_EXACT = ["/health", "/api/health"];
 
 const getPath = (req) => (req.originalUrl || req.url || "").split("?")[0];
 
@@ -30,9 +30,22 @@ const getUserRole = (req) => {
   return decoded?.role || decoded?.rol || "";
 };
 
-const isAlwaysAllowed = (path) =>
-  ALWAYS_ALLOWED_EXACT.includes(path) ||
-  ALWAYS_ALLOWED_PREFIXES.some((prefix) => path.startsWith(prefix));
+const isAlwaysAllowed = (path, maintenanceConfig = {}) => {
+  const extraPrefixes = Array.isArray(maintenanceConfig?.allowPrefixes)
+    ? maintenanceConfig.allowPrefixes.filter(Boolean)
+    : [];
+  const extraExact = Array.isArray(maintenanceConfig?.allowExact)
+    ? maintenanceConfig.allowExact.filter(Boolean)
+    : [];
+
+  const allowedExact = [...new Set([...BASE_ALLOWED_EXACT, ...extraExact])];
+  const allowedPrefixes = [...new Set([...BASE_ALLOWED_PREFIXES, ...extraPrefixes])];
+
+  return (
+    allowedExact.includes(path) ||
+    allowedPrefixes.some((prefix) => path.startsWith(prefix))
+  );
+};
 
 const sendMaintenance = (res, message) =>
   res.status(503).json({
@@ -46,13 +59,14 @@ const checkMaintenanceMode = async (req, res, next) => {
     if (req.method === "OPTIONS") return next();
 
     const path = getPath(req);
-    if (isAlwaysAllowed(path)) return next();
-
     const tenantId = getTenantIdFromRequest(req);
     const config = await getOrCreateTenantConfig(tenantId);
+    const maintenance = config.maintenance || {};
+
+    if (isAlwaysAllowed(path, maintenance)) return next();
+
     if (!isMaintenanceModeEnabled(config)) return next();
 
-    const maintenance = config.maintenance || {};
     const role = String(getUserRole(req)).toUpperCase();
     if (maintenance.allowAdminAccess && role === "ADMIN") return next();
 

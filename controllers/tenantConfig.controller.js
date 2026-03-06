@@ -92,7 +92,9 @@ const patchMaintenance = async (req, res) => {
       "disableStorefront",
       "disablePOS",
       "allowAdminAccess",
-      "equipmentTracking"
+      "equipmentTracking",
+      "allowPrefixes",
+      "allowExact"
     ];
     const maintenancePatch = {};
     allowed.forEach((key) => {

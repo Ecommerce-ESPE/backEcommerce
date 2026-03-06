@@ -139,8 +139,10 @@ const InvoiceSchema = new mongoose.Schema(
 InvoiceSchema.pre("save", async function (next) {
   if (this.isNew) {
     if (!this.invoiceNumber) {
+      const tenantId = this.tenantId || "DEFAULT";
+      const branchId = this.branchId || "DEFAULT";
       const counter = await Counter.findByIdAndUpdate(
-        { _id: "invoice_number" },
+        { _id: `invoice_number:${tenantId}:${branchId}` },
         { $inc: { seq: 1 } },
         { new: true, upsert: true }
       );
@@ -158,6 +160,6 @@ InvoiceSchema.pre("save", async function (next) {
 
 InvoiceSchema.index({ tenantId: 1, issuedAt: 1 });
 InvoiceSchema.index({ tenantId: 1, branchId: 1 });
-InvoiceSchema.index({ tenantId: 1, invoiceNumber: 1 }, { unique: true });
+InvoiceSchema.index({ tenantId: 1, branchId: 1, invoiceNumber: 1 }, { unique: true });
 
 module.exports = mongoose.model("Invoice", InvoiceSchema);
