@@ -157,9 +157,48 @@ const getPublicStoreSettings = async (req, res) => {
           name: config?.business?.name || "",
           currency: config?.business?.currency || "USD",
           locale: config?.business?.locale || "es-EC",
-          timezone: config?.business?.timezone || "America/Guayaquil"
+          timezone: config?.business?.timezone || "America/Guayaquil",
+          contact: {
+            address: config?.business?.contact?.address || "",
+            phone: config?.business?.contact?.phone || "",
+            email: config?.business?.contact?.email || "",
+            whatsapp: config?.business?.contact?.whatsapp || "",
+            website: config?.business?.contact?.website || "",
+            city: config?.business?.contact?.city || "",
+            country: config?.business?.contact?.country || "EC",
+            scheduleText: config?.business?.contact?.scheduleText || "",
+            googleMapsUrl: config?.business?.contact?.googleMapsUrl || "",
+            coordinates: config?.business?.contact?.coordinates || { lat: null, lng: null }
+          }
         },
         branding: config.branding || {},
+        hours: {
+          timezone: config?.hours?.timezone || config?.business?.timezone || "America/Guayaquil",
+          weekly: Array.isArray(config?.hours?.weekly) ? config.hours.weekly : [],
+          specialDates: Array.isArray(config?.hours?.specialDates) ? config.hours.specialDates : [],
+          acceptOrdersOutsideHours: Boolean(config?.hours?.acceptOrdersOutsideHours)
+        },
+        checkout: {
+          guestCheckoutEnabled: Boolean(config?.checkout?.guestCheckoutEnabled),
+          requireIdentification: Boolean(config?.checkout?.requireIdentification),
+          requirePhone: config?.checkout?.requirePhone !== false,
+          requireAddressByOrderType: config?.checkout?.requireAddressByOrderType || {
+            delivery: true,
+            pickup: false,
+            dineIn: false
+          },
+          orderNotesEnabled: config?.checkout?.orderNotesEnabled !== false,
+          tipEnabled: Boolean(config?.checkout?.tipEnabled),
+          termsText: config?.checkout?.termsText || "",
+          privacyText: config?.checkout?.privacyText || "",
+          requiredFields: config?.checkout?.requiredFields || {
+            customerName: true,
+            email: true,
+            phone: true,
+            addressLine1: true,
+            city: true
+          }
+        },
         tax: {
           strategy: config?.tax?.strategy || "ecuador_iva",
           priceIncludesTax: Boolean(config?.tax?.priceIncludesTax),
@@ -194,15 +233,30 @@ const getPublicFooter = async (req, res) => {
 
     const businessName = config?.business?.name || "";
     const footer = config?.footer || {};
+    const contactSource = footer?.contactSource || "business.contact";
+    const contactFromBusiness = config?.business?.contact || {};
+    const contactFromFooter = footer?.contact || {};
+    const resolvedContact =
+      contactSource === "footer.contact" ? contactFromFooter : contactFromBusiness;
 
     return res.json({
       ok: true,
       data: {
         enabled: footer.enabled !== false,
+        showContact: footer.showContact !== false,
+        showSchedule: footer.showSchedule !== false,
+        showSocial: footer.showSocial !== false,
+        showQuickLinks: footer.showQuickLinks !== false,
+        showLegalLinks: footer.showLegalLinks !== false,
+        contactSource,
         businessName,
         logoUrl: config?.branding?.logoUrl || "",
         aboutText: footer.aboutText || "",
-        contact: footer.contact || {},
+        contact: resolvedContact || {},
+        scheduleText:
+          resolvedContact?.scheduleText ||
+          config?.business?.contact?.scheduleText ||
+          "",
         social: footer.social || {},
         quickLinks: Array.isArray(footer.quickLinks) ? footer.quickLinks : [],
         legalLinks: Array.isArray(footer.legalLinks) ? footer.legalLinks : [],

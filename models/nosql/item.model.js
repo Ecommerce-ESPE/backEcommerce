@@ -136,7 +136,7 @@ const ItemSchema = new mongoose.Schema(
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "users",
-      required: true
+      required: false
     },
     category: {
       type: mongoose.Schema.Types.ObjectId,

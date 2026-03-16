@@ -1,3 +1,3 @@
-const { getAllBanners, getBannerById } = require('./actions');
+const { getAllBanners, getBannerPromoById } = require('./actions');
 
-module.exports = { getAllBanners, getBannerById };
+module.exports = { getAllBanners, getBannerPromoById };

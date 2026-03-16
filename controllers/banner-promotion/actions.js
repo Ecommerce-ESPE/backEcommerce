@@ -251,7 +251,7 @@ const getAllBanners = async (req, res) => {
 };
 
 // GET - Banner por ID
-const getBannerById = async (req, res) => {
+const getBannerPromoById = async (req, res) => {
   try {
     const banner = await bannerPromotionModel.findById(req.params.id)
       .populate("categories");
@@ -381,7 +381,7 @@ const deleteBanner = async (req, res) => {
 
 module.exports = {
   getAllBanners,
-  getBannerById,
+  getBannerPromoById,
   createBanner,
   updateBanner,
   deleteBanner,

@@ -28,6 +28,7 @@ const models = {
      serviceTicketModel:require('./nosql/serviceTicket.model'),
      brandModel:require('./nosql/brand.model'),
      tagModel:require('./nosql/tag.model'),
+     tenantSecretModel:require('./nosql/tenantSecret.model'),
 }
 
 module.exports = models;

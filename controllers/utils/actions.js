@@ -17,6 +17,27 @@ const createBannerHero = async (req, res) => {
       .json({ message: "Error al crear Banner Hero", error: error.message });
   }
 };
+//get abnner id 
+const getBannerById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const banner = await bannerHeroModel.findById(id);
+        if (!banner) {
+            return res.status(404).json({ message: "Banner Hero no encontrado" });
+        }
+        res.status(200).json({
+            ok: true,
+            data: banner,
+        });
+    } catch (error) {
+        res.status(500).json({
+            ok: false,
+            message: "Error al obtener Banner Hero",
+            error: error.message,
+        });
+    }
+};
+ 
 
 // Get Banners Hero Date
 const getBannersHeroDate = async (req, res) => {
@@ -201,6 +222,7 @@ module.exports = {
     getAllBannersHero,
     updateBannerHero,
     deleteBannerHero,
+    getBannerById,
     // PROMOBAR
     createPromoBar,
     getPromoBarDate,

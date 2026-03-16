@@ -9,7 +9,8 @@ const {
   uploadCategoryMiniBannerImage,
   uploadSubcategoryImage,
   deleteSubcategoryImage,
-  uploadBrandLogoImage
+  uploadBrandLogoImage,
+  uploadBannerPromotionImage
 } = require('../controllers/uploads');
 
 const router = Router();
@@ -52,5 +53,7 @@ router.delete(
 
 // Brand logo image
 router.put('/brands/:id/logo', upload.single('image'), uploadBrandLogoImage);
+
+router.put('/banner-promotions/:id/image', upload.single('image'), uploadBannerPromotionImage);
 
 module.exports = router;

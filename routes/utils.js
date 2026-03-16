@@ -10,6 +10,7 @@ const {
   getAllBannersHero,
   updateBannerHero,
   deleteBannerHero,
+  getBannerById,
   // PROMOBAR
   createPromoBar,
   getPromoBarDate,
@@ -24,7 +25,7 @@ const {
 
 const {
     getAllBanners,
-    getBannerById,
+    getBannerPromoById,
     createBanner,
     updateBanner,
     deleteBanner
@@ -33,6 +34,7 @@ const {
 router.post("/banner-hero", createBannerHero);
 router.get("/banner-hero/date", getBannersHeroDate);
 router.get("/banner-hero", getAllBannersHero);
+router.get("/banner-hero/:id", getBannerById);
 router.put("/banner-hero/:id", updateBannerHero);
 router.delete("/banner-hero/:id", deleteBannerHero);
 
@@ -53,5 +55,6 @@ router.post("/banner-promotion", createBanner);
 router.get("/banner-promotion", getAllBanners);
 router.put("/banner-promotion/:id", updateBanner);
 router.delete("/banner-promotion/:id", deleteBanner);
+router.get("/banner-promotion/:id", getBannerPromoById);
 
 module.exports = router;

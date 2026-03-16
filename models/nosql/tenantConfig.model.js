@@ -18,6 +18,30 @@ const BrandingSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const CoordinatesSchema = new mongoose.Schema(
+  {
+    lat: { type: Number, default: null },
+    lng: { type: Number, default: null }
+  },
+  { _id: false }
+);
+
+const BusinessContactSchema = new mongoose.Schema(
+  {
+    address: { type: String, default: "" },
+    phone: { type: String, default: "" },
+    email: { type: String, default: "" },
+    whatsapp: { type: String, default: "" },
+    website: { type: String, default: "" },
+    city: { type: String, default: "" },
+    country: { type: String, default: "EC" },
+    scheduleText: { type: String, default: "" },
+    googleMapsUrl: { type: String, default: "" },
+    coordinates: { type: CoordinatesSchema, default: () => ({}) }
+  },
+  { _id: false }
+);
+
 const FooterLinkSchema = new mongoose.Schema(
   {
     label: { type: String, default: "" },
@@ -51,6 +75,12 @@ const FooterSchema = new mongoose.Schema(
   {
     enabled: { type: Boolean, default: true },
     aboutText: { type: String, default: "" },
+    showContact: { type: Boolean, default: true },
+    showSchedule: { type: Boolean, default: true },
+    showSocial: { type: Boolean, default: true },
+    showQuickLinks: { type: Boolean, default: true },
+    showLegalLinks: { type: Boolean, default: true },
+    contactSource: { type: String, default: "business.contact" },
     contact: { type: FooterContactSchema, default: () => ({}) },
     social: { type: FooterSocialSchema, default: () => ({}) },
     quickLinks: { type: [FooterLinkSchema], default: [] },
@@ -139,6 +169,224 @@ const SalesSchema = new mongoose.Schema(
       card: { type: Boolean, default: true },
       transfer: { type: Boolean, default: true }
     }
+  },
+  { _id: false }
+);
+
+const HourDaySchema = new mongoose.Schema(
+  {
+    day: {
+      type: String,
+      enum: [
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday"
+      ],
+      required: true
+    },
+    enabled: { type: Boolean, default: true },
+    open: { type: String, default: "08:00" },
+    close: { type: String, default: "18:00" }
+  },
+  { _id: false }
+);
+
+const HourSpecialDateSchema = new mongoose.Schema(
+  {
+    date: { type: String, required: true },
+    closed: { type: Boolean, default: false },
+    open: { type: String, default: null },
+    close: { type: String, default: null },
+    note: { type: String, default: "" }
+  },
+  { _id: false }
+);
+
+const HoursSchema = new mongoose.Schema(
+  {
+    timezone: { type: String, default: "America/Guayaquil" },
+    weekly: { type: [HourDaySchema], default: [] },
+    specialDates: { type: [HourSpecialDateSchema], default: [] },
+    acceptOrdersOutsideHours: { type: Boolean, default: false }
+  },
+  { _id: false }
+);
+
+const CheckoutRequiredFieldsSchema = new mongoose.Schema(
+  {
+    customerName: { type: Boolean, default: true },
+    email: { type: Boolean, default: true },
+    phone: { type: Boolean, default: true },
+    addressLine1: { type: Boolean, default: true },
+    city: { type: Boolean, default: true }
+  },
+  { _id: false }
+);
+
+const CheckoutSchema = new mongoose.Schema(
+  {
+    guestCheckoutEnabled: { type: Boolean, default: true },
+    requireIdentification: { type: Boolean, default: false },
+    requirePhone: { type: Boolean, default: true },
+    requireAddressByOrderType: {
+      delivery: { type: Boolean, default: true },
+      pickup: { type: Boolean, default: false },
+      dineIn: { type: Boolean, default: false }
+    },
+    orderNotesEnabled: { type: Boolean, default: true },
+    tipEnabled: { type: Boolean, default: false },
+    termsText: { type: String, default: "" },
+    privacyText: { type: String, default: "" },
+    requiredFields: { type: CheckoutRequiredFieldsSchema, default: () => ({}) }
+  },
+  { _id: false }
+);
+
+const NotificationChannelSchema = new mongoose.Schema(
+  {
+    email: { type: Boolean, default: true },
+    whatsapp: { type: Boolean, default: false },
+    sms: { type: Boolean, default: false },
+    push: { type: Boolean, default: false },
+    internal: { type: Boolean, default: true }
+  },
+  { _id: false }
+);
+
+const NotificationEventsSchema = new mongoose.Schema(
+  {
+    order_created: { type: NotificationChannelSchema, default: () => ({}) },
+    order_paid: { type: NotificationChannelSchema, default: () => ({}) },
+    order_preparing: { type: NotificationChannelSchema, default: () => ({}) },
+    order_ready: { type: NotificationChannelSchema, default: () => ({}) },
+    order_dispatched: { type: NotificationChannelSchema, default: () => ({}) },
+    order_delivered: { type: NotificationChannelSchema, default: () => ({}) },
+    invoice_generated: { type: NotificationChannelSchema, default: () => ({}) }
+  },
+  { _id: false }
+);
+
+const NotificationsSchema = new mongoose.Schema(
+  {
+    channels: { type: NotificationChannelSchema, default: () => ({}) },
+    events: { type: NotificationEventsSchema, default: () => ({}) }
+  },
+  { _id: false }
+);
+
+const IntegrationProviderSchema = new mongoose.Schema(
+  {
+    enabled: { type: Boolean, default: false },
+    provider: { type: String, default: "none" },
+    publicKey: { type: String, default: "" },
+    secretKey: { type: String, default: "" },
+    apiKey: { type: String, default: "" },
+    apiSecret: { type: String, default: "" },
+    token: { type: String, default: "" },
+    fromEmail: { type: String, default: "" },
+    phoneId: { type: String, default: "" },
+    environment: { type: String, default: "PRUEBAS" }
+  },
+  { _id: false }
+);
+
+const IntegrationsSchema = new mongoose.Schema(
+  {
+    payments: { type: IntegrationProviderSchema, default: () => ({}) },
+    sri: {
+      enabled: { type: Boolean, default: false },
+      provider: { type: String, default: "none" },
+      environment: { type: String, default: "PRUEBAS" },
+      mode: { type: String, default: "certificate_file" },
+      signature: {
+        provider: { type: String, default: "vault" },
+        hasCertificate: { type: Boolean, default: false },
+        certificateAlias: { type: String, default: "" },
+        serialNumber: { type: String, default: "" },
+        validFrom: { type: String, default: "" },
+        validTo: { type: String, default: "" },
+        vaultKeyRef: { type: String, default: "" },
+        pinSet: { type: Boolean, default: false },
+        lastRotatedAt: { type: Date, default: null },
+        lastTestAt: { type: Date, default: null },
+        lastTestStatus: { type: String, default: "" }
+      }
+    },
+    whatsapp: { type: IntegrationProviderSchema, default: () => ({}) },
+    email: { type: IntegrationProviderSchema, default: () => ({}) },
+    maps: { type: IntegrationProviderSchema, default: () => ({}) }
+  },
+  { _id: false }
+);
+
+const SecuritySchema = new mongoose.Schema(
+  {
+    session: {
+      sessionTimeoutMinutes: { type: Number, default: 120, min: 5 },
+      rememberMeEnabled: { type: Boolean, default: true },
+      maxConcurrentSessions: { type: Number, default: 3, min: 1 }
+    },
+    ipSecurity: {
+      whitelistEnabled: { type: Boolean, default: false },
+      allowedIps: { type: [String], default: [] },
+      adminOnlyIpRestriction: { type: Boolean, default: false }
+    },
+    rateLimits: {
+      loginAttempts: { type: Number, default: 5, min: 1 },
+      patchConfigAttempts: { type: Number, default: 20, min: 1 },
+      checkoutAttempts: { type: Number, default: 30, min: 1 }
+    },
+    abuseProtection: {
+      slowdownEnabled: { type: Boolean, default: true },
+      blockDurationSec: { type: Number, default: 900, min: 30 },
+      maxConcurrentCheckout: { type: Number, default: 20, min: 1 }
+    },
+    audit: {
+      enabled: { type: Boolean, default: true },
+      logConfigChanges: { type: Boolean, default: true },
+      logAdminActions: { type: Boolean, default: true }
+    },
+    authRules: {
+      requireReauthForSensitiveChanges: { type: Boolean, default: true },
+      requireTenantAdminRoleForConfigChanges: { type: Boolean, default: true }
+    }
+  },
+  { _id: false }
+);
+
+const BackupSchema = new mongoose.Schema(
+  {
+    policy: {
+      enabled: { type: Boolean, default: true },
+      frequency: { type: String, default: "daily" },
+      retentionDays: { type: Number, default: 30, min: 1 },
+      timeWindowStart: { type: String, default: "02:00" },
+      timeWindowEnd: { type: String, default: "04:00" },
+      notifyOnSuccess: { type: Boolean, default: false },
+      notifyOnFailure: { type: Boolean, default: true },
+      notificationEmails: { type: [String], default: [] }
+    },
+    restoreDrills: {
+      enabled: { type: Boolean, default: true },
+      frequencyDays: { type: Number, default: 30, min: 1 },
+      lastDrillAt: { type: Date, default: null },
+      responsibleEmails: { type: [String], default: [] },
+      notes: { type: String, default: "" }
+    }
+  },
+  { _id: false }
+);
+
+const ComplianceSchema = new mongoose.Schema(
+  {
+    dataRetentionDays: { type: Number, default: 365, min: 30 },
+    maskSensitiveLogs: { type: Boolean, default: true },
+    exportAuditEnabled: { type: Boolean, default: true },
+    requireInvoiceNumberingAudit: { type: Boolean, default: true }
   },
   { _id: false }
 );
@@ -281,13 +529,21 @@ const TenantConfigSchema = new mongoose.Schema(
       },
       currency: { type: String, default: "USD" },
       locale: { type: String, default: "es-EC" },
-      timezone: { type: String, default: "America/Guayaquil" }
+      timezone: { type: String, default: "America/Guayaquil" },
+      contact: { type: BusinessContactSchema, default: () => ({}) }
     },
     branding: { type: BrandingSchema, default: () => ({}) },
     footer: { type: FooterSchema, default: () => ({}) },
     modules: { type: ModulesSchema, default: () => ({}) },
     tax: { type: TaxSchema, default: () => ({}) },
     sales: { type: SalesSchema, default: () => ({}) },
+    hours: { type: HoursSchema, default: () => ({}) },
+    checkout: { type: CheckoutSchema, default: () => ({}) },
+    notifications: { type: NotificationsSchema, default: () => ({}) },
+    integrations: { type: IntegrationsSchema, default: () => ({}) },
+    security: { type: SecuritySchema, default: () => ({}) },
+    backup: { type: BackupSchema, default: () => ({}) },
+    compliance: { type: ComplianceSchema, default: () => ({}) },
     operations: { type: OperationsSchema, default: () => ({}) },
     numbers: { type: NumbersSchema, default: () => ({}) },
     invoice: { type: InvoiceConfigSchema, default: () => ({}) },
@@ -304,7 +560,22 @@ const buildDefaultTenantConfig = (tenantId = "DEFAULT") => ({
     industryMode: "restaurant",
     currency: "USD",
     locale: "es-EC",
-    timezone: "America/Guayaquil"
+    timezone: "America/Guayaquil",
+    contact: {
+      address: "",
+      phone: "",
+      email: "",
+      whatsapp: "",
+      website: "",
+      city: "",
+      country: "EC",
+      scheduleText: "",
+      googleMapsUrl: "",
+      coordinates: {
+        lat: null,
+        lng: null
+      }
+    }
   },
   branding: {
     logoUrl: "",
@@ -318,6 +589,12 @@ const buildDefaultTenantConfig = (tenantId = "DEFAULT") => ({
   footer: {
     enabled: true,
     aboutText: "",
+    showContact: true,
+    showSchedule: true,
+    showSocial: true,
+    showQuickLinks: true,
+    showLegalLinks: true,
+    contactSource: "business.contact",
     contact: {
       address: "",
       phone: "",
@@ -360,6 +637,140 @@ const buildDefaultTenantConfig = (tenantId = "DEFAULT") => ({
   sales: {
     orderTypesEnabled: { pickup: true, delivery: true, dineIn: false },
     paymentMethods: { cash: true, card: true, transfer: true }
+  },
+  hours: {
+    timezone: "America/Guayaquil",
+    weekly: [
+      { day: "monday", enabled: true, open: "08:00", close: "18:00" },
+      { day: "tuesday", enabled: true, open: "08:00", close: "18:00" },
+      { day: "wednesday", enabled: true, open: "08:00", close: "18:00" },
+      { day: "thursday", enabled: true, open: "08:00", close: "18:00" },
+      { day: "friday", enabled: true, open: "08:00", close: "18:00" },
+      { day: "saturday", enabled: true, open: "09:00", close: "14:00" },
+      { day: "sunday", enabled: false, open: "00:00", close: "00:00" }
+    ],
+    specialDates: [],
+    acceptOrdersOutsideHours: false
+  },
+  checkout: {
+    guestCheckoutEnabled: true,
+    requireIdentification: false,
+    requirePhone: true,
+    requireAddressByOrderType: {
+      delivery: true,
+      pickup: false,
+      dineIn: false
+    },
+    orderNotesEnabled: true,
+    tipEnabled: false,
+    termsText: "",
+    privacyText: "",
+    requiredFields: {
+      customerName: true,
+      email: true,
+      phone: true,
+      addressLine1: true,
+      city: true
+    }
+  },
+  notifications: {
+    channels: {
+      email: true,
+      whatsapp: false,
+      sms: false,
+      push: false,
+      internal: true
+    },
+    events: {
+      order_created: { email: true, whatsapp: false, sms: false, push: false, internal: true },
+      order_paid: { email: true, whatsapp: false, sms: false, push: false, internal: true },
+      order_preparing: { email: false, whatsapp: false, sms: false, push: false, internal: true },
+      order_ready: { email: true, whatsapp: false, sms: false, push: false, internal: true },
+      order_dispatched: { email: true, whatsapp: false, sms: false, push: false, internal: true },
+      order_delivered: { email: true, whatsapp: false, sms: false, push: false, internal: true },
+      invoice_generated: { email: true, whatsapp: false, sms: false, push: false, internal: true }
+    }
+  },
+  integrations: {
+    payments: { enabled: false, provider: "none", publicKey: "", secretKey: "" },
+    sri: {
+      enabled: false,
+      provider: "none",
+      environment: "PRUEBAS",
+      mode: "certificate_file",
+      signature: {
+        provider: "vault",
+        hasCertificate: false,
+        certificateAlias: "",
+        serialNumber: "",
+        validFrom: "",
+        validTo: "",
+        vaultKeyRef: "",
+        pinSet: false,
+        lastRotatedAt: null,
+        lastTestAt: null,
+        lastTestStatus: ""
+      }
+    },
+    whatsapp: { enabled: false, provider: "none", phoneId: "", token: "" },
+    email: { enabled: false, provider: "none", fromEmail: "", apiKey: "" },
+    maps: { enabled: false, provider: "none", apiKey: "" }
+  },
+  security: {
+    session: {
+      sessionTimeoutMinutes: 120,
+      rememberMeEnabled: true,
+      maxConcurrentSessions: 3
+    },
+    ipSecurity: {
+      whitelistEnabled: false,
+      allowedIps: [],
+      adminOnlyIpRestriction: false
+    },
+    rateLimits: {
+      loginAttempts: 5,
+      patchConfigAttempts: 20,
+      checkoutAttempts: 30
+    },
+    abuseProtection: {
+      slowdownEnabled: true,
+      blockDurationSec: 900,
+      maxConcurrentCheckout: 20
+    },
+    audit: {
+      enabled: true,
+      logConfigChanges: true,
+      logAdminActions: true
+    },
+    authRules: {
+      requireReauthForSensitiveChanges: true,
+      requireTenantAdminRoleForConfigChanges: true
+    }
+  },
+  backup: {
+    policy: {
+      enabled: true,
+      frequency: "daily",
+      retentionDays: 30,
+      timeWindowStart: "02:00",
+      timeWindowEnd: "04:00",
+      notifyOnSuccess: false,
+      notifyOnFailure: true,
+      notificationEmails: []
+    },
+    restoreDrills: {
+      enabled: true,
+      frequencyDays: 30,
+      lastDrillAt: null,
+      responsibleEmails: [],
+      notes: ""
+    }
+  },
+  compliance: {
+    dataRetentionDays: 365,
+    maskSensitiveLogs: true,
+    exportAuditEnabled: true,
+    requireInvoiceNumberingAudit: true
   },
   operations: {
     multiBranchEnabled: false,

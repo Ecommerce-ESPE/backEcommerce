@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const BannerPromotionSchema = new mongoose.Schema(
   {
     image: { type: String, required: true },
+    public_id: { type: String, required: false },
     subtitle: { type: String, required: true },
     title: { type: String, required: true },
     buttonText: { type: String, required: true },

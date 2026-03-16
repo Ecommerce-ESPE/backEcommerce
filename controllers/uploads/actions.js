@@ -1,5 +1,12 @@
 const { uploadToCloudinary } = require('../../helpers/cloudinaryUpload');
-const { itemModel, bannerHeroModel, userModel, categoryModel, brandModel } = require('../../models/index');
+const { 
+  bannerPromotionModel, 
+  bannerHeroModel,
+  itemModel,
+  userModel,
+  categoryModel,
+  brandModel
+} = require('../../models/index');
 const cloudinary = require('cloudinary').v2;
 
 const extractCloudinaryPublicIdFromUrl = (url = '') => {
@@ -421,6 +428,45 @@ const uploadBrandLogoImage = async (req, res) => {
     res.status(500).json({ error: "Error al subir logo de marca" });
   }
 };
+
+const uploadBannerPromotionImage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const file = req.file;
+
+    if (!file) {
+      return res.status(400).json({ error: 'No se envió una imagen' });
+    }
+
+    const bannerPromotion = await bannerPromotionModel.findById(id);
+    if (!bannerPromotion) {
+      return res.status(404).json({ error: 'Promoción de banner no encontrada' });
+    }
+
+    // Eliminar imagen anterior si existe
+    if (bannerPromotion.public_id) {
+      await cloudinary.uploader.destroy(bannerPromotion.public_id);
+    }
+
+    const result = await uploadToCloudinary(file.buffer, 'banners/promotions');
+
+    const updatedBanner = await bannerPromotionModel.findByIdAndUpdate(
+      id,
+      { image: result.secure_url, public_id: result.public_id },
+      { new: true }
+    );
+
+    res.json({
+      message: 'Imagen de promoción de banner actualizada correctamente',
+      banner: updatedBanner
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al subir imagen de promoción de banner' });
+  }
+};
+
 module.exports = {
   uploadMultipleImages,
   deleteImageFromItem,
@@ -430,5 +476,6 @@ module.exports = {
   uploadCategoryMiniBannerImage,
   uploadSubcategoryImage,
   deleteSubcategoryImage,
-  uploadBrandLogoImage
+  uploadBrandLogoImage,
+  uploadBannerPromotionImage
 };
