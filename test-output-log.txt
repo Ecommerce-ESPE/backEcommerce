@@ -1,0 +1,30 @@
+Testing resolveCategorySubcategoryFilters...
+Result: {
+  "category": "6854b0974f6db52ef5286a2e",
+  "subcategory": "636f6d70757461646f726173"
+}
+Category Docs found:
+[
+  {
+    "_id": "6854b0974f6db52ef5286a2e",
+    "name": "Electrodomésticos",
+    "subcategories": [
+      {
+        "name": "Teléfonos",
+        "_id": "6854b0974f6db52ef5286a2f"
+      },
+      {
+        "name": "Computadoras",
+        "_id": "68667880377e9d5134000ae3"
+      },
+      {
+        "name": "Consolas",
+        "_id": "68669c13d08195cd6151940d"
+      },
+      {
+        "name": "Componentes",
+        "_id": "69a4e882e82335be3a33f7de"
+      }
+    ]
+  }
+]

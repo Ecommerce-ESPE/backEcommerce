@@ -518,6 +518,8 @@ const normalizeSpecs = (specsInput) => {
 
 const escapeRegExp = escapeRegex;
 
+const isHexObjectId = (id) => /^[0-9a-fA-F]{24}$/.test(id);
+
 const resolveCategorySubcategoryFilters = async ({
   categoryQuery,
   subcategoryQuery,
@@ -527,7 +529,7 @@ const resolveCategorySubcategoryFilters = async ({
 
   const rawCategory = String(categoryQuery || "").trim();
   if (rawCategory && rawCategory.toLowerCase() !== "ninguna") {
-    if (mongoose.Types.ObjectId.isValid(rawCategory)) {
+    if (isHexObjectId(rawCategory)) {
       resolvedCategoryId = new mongoose.Types.ObjectId(rawCategory);
     } else {
       let categoryDoc = await categoryModel
@@ -550,7 +552,7 @@ const resolveCategorySubcategoryFilters = async ({
 
   const rawSubcategory = String(subcategoryQuery || "").trim();
   if (rawSubcategory && rawSubcategory.toLowerCase() !== "ninguna") {
-    if (mongoose.Types.ObjectId.isValid(rawSubcategory)) {
+    if (isHexObjectId(rawSubcategory)) {
       resolvedSubcategoryId = new mongoose.Types.ObjectId(rawSubcategory);
     } else {
       const normalizedSubcategory = normalizeLooseText(rawSubcategory);
@@ -597,7 +599,7 @@ const resolveTagsFilter = async (tagsQuery) => {
 
   if (tokens.length === 0) return undefined;
 
-  const idTokens = tokens.filter((token) => mongoose.Types.ObjectId.isValid(token));
+  const idTokens = tokens.filter((token) => isHexObjectId(token));
   const slugTokens = tokens
     .map((token) => slugifyText(token))
     .filter(Boolean);
